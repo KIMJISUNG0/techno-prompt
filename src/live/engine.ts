@@ -37,6 +37,7 @@ interface TrackState {
   opts: PlayOptions;
   stepIndex: number;
   sideGain?: GainNode; // for sidechain ducking
+  duckGain?: GainNode; // per-track duck node (post-track)
 }
 
 class LiveEngine {
@@ -185,12 +186,19 @@ class LiveEngine {
       if (opts.sidechain === undefined) opts.sidechain = true;
     }
     const existing = this.tracks.get(id);
-    if (existing) existing.opts = { ...existing.opts, ...opts };
-    else this.tracks.set(id, { id, opts, stepIndex: 0 });
+    if (existing) {
+      existing.opts = { ...existing.opts, ...opts };
+      this.ensureTrackDuck(existing);
+    } else {
+      const ts:TrackState = { id, opts, stepIndex:0 };
+      this.ensureTrackDuck(ts);
+      this.tracks.set(id, ts);
+    }
   }
 
   update(id: string, partial: Partial<PlayOptions>){
     const t = this.tracks.get(id); if (!t) return; t.opts = { ...t.opts, ...partial };
+    this.ensureTrackDuck(t);
   }
 
   stop(id: string) { this.tracks.delete(id); }
@@ -275,7 +283,7 @@ class LiveEngine {
       this.playRide(time, ts.opts, vel);
     } else this.playClick(time, ts.opts, vel);
     // sidechain duck if kick
-    if (role === 'kick') this.applySidechain(time);
+  if (role === 'kick') this.applyPerTrackDuck(time);
     // Dispatch a hit event close to actual audio time (scheduled ahead)
     try {
       const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
@@ -365,8 +373,9 @@ class LiveEngine {
     const ctx = this.ctx!;
     const decay = opts.decay ?? 0.35;
     const freq = 440 * Math.pow(2, (note - 69) / 12);
+    const outBus = this.routeTrack(opts, vel);
     if (this.useHQ && (opts.wave==='saw' || opts.wave==='square' || opts.wave==='supersaw')) {
-      this.sendHQVoices(time, [{ id:'b'+(++this.wlIdCounter), freq, gain:(opts.gain ?? 0.6)*vel, wave:'saw', env: { attack:0.005, decay:decay*0.6, sustain:0.4, release:decay*0.4 } }], opts);
+      this.sendHQVoices(time, [{ id:'b'+(++this.wlIdCounter), freq, gain:(opts.gain ?? 0.6)*vel, wave:'saw', env: { attack:0.005, decay:decay*0.6, sustain:0.4, release:decay*0.4 } }], opts, outBus);
       return;
     }
     const out = ctx.createGain();
@@ -393,7 +402,7 @@ class LiveEngine {
       osc.frequency.setValueAtTime(freq, time);
       osc.connect(lp); osc.start(time); osc.stop(time+decay+0.05);
     }
-    lp.connect(out).connect(this.masterGain!);
+    lp.connect(out).connect(outBus);
   }
 
   private playSnare(time:number, opts:PlayOptions, vel:number){
@@ -414,6 +423,7 @@ class LiveEngine {
   private playPad(time:number, opts:PlayOptions, note:number, vel:number){
     const ctx = this.ctx!;
     const freq = 440 * Math.pow(2,(note-69)/12);
+    const outBus = this.routeTrack(opts, vel);
     if (this.useHQ && (opts.wave==='saw' || opts.wave==='square' || opts.wave==='supersaw')) {
       const unison = (opts.wave==='supersaw' ? (opts.unison||6) : 1);
       const det = (opts.detune ?? 18)/2;
@@ -423,10 +433,10 @@ class LiveEngine {
         const cents = spread * det;
         voices.push({ id:'p'+(++this.wlIdCounter)+'_'+i, freq: freq*Math.pow(2,cents/1200), gain: ((opts.gain ?? 0.5)*vel)/unison, wave:'saw', env:{ attack:0.35, decay:0.7, sustain:0.65, release:2.2 } });
       }
-      this.sendHQVoices(time, voices, opts);
+      this.sendHQVoices(time, voices, opts, outBus);
       return;
     }
-    const out = ctx.createGain(); out.connect(this.masterGain!);
+    const out = ctx.createGain(); out.connect(outBus);
     const attack = opts.env?.attack ?? 0.35;
     const decay = opts.env?.decay ?? 0.7;
     const sus = opts.env?.sustain ?? 0.65;
@@ -458,6 +468,7 @@ class LiveEngine {
   private playLead(time:number, opts:PlayOptions, note:number, vel:number){
     const ctx = this.ctx!;
     const baseFreq = 440 * Math.pow(2,(note-69)/12);
+    const outBus = this.routeTrack(opts, vel);
     if (this.useHQ && (opts.wave==='saw' || opts.wave==='square' || opts.wave==='supersaw')) {
       const unison = (opts.wave==='supersaw' ? (opts.unison||6) : 1);
       const det = (opts.detune ?? 16)/2;
@@ -467,10 +478,10 @@ class LiveEngine {
         const cents = spread * det;
         voices.push({ id:'l'+(++this.wlIdCounter)+'_'+i, freq: baseFreq*Math.pow(2,cents/1200), gain: ((opts.gain ?? 0.55)*vel)/unison, wave:'saw', env:{ attack:0.008, decay:0.22, sustain:0.45, release:0.28 } });
       }
-      this.sendHQVoices(time, voices, opts);
+      this.sendHQVoices(time, voices, opts, outBus);
       return;
     }
-    const out = ctx.createGain(); out.connect(this.masterGain!);
+    const out = ctx.createGain(); out.connect(outBus);
     const attack = opts.env?.attack ?? 0.008;
     const decay = opts.env?.decay ?? 0.22;
     const sus = opts.env?.sustain ?? 0.45;
@@ -498,7 +509,7 @@ class LiveEngine {
     out.gain.linearRampToValueAtTime(0.0001, time+attack+decay+rel);
   }
 
-  private sendHQVoices(time:number, voices:any[], _opts:PlayOptions){
+  private sendHQVoices(time:number, voices:any[], _opts:PlayOptions, _target:AudioNode){
     if (!this.wlPort) return; // fallback silent if race
     voices.forEach(v => {
       this.wlPort!.postMessage({ type:'noteOn', id:v.id, freq:v.freq, gain:v.gain, wave:v.wave==='square'?'square':'saw', attack:v.env.attack, decay:v.env.decay, sustain:v.env.sustain, release:v.env.release, time });
@@ -508,6 +519,46 @@ class LiveEngine {
       const ctxNow = this.ctx?.currentTime || 0;
       const delayMs = Math.max(0, (offTime - ctxNow)*1000);
   setTimeout(()=>{ if (this.wlPort) this.wlPort.postMessage({ type:'noteOff', id:v.id, time: offTime }); }, delayMs);
+    });
+    // Currently worklet outputs directly to master; future: route to target via dedicated gain if needed
+  }
+
+  private ensureTrackDuck(ts:TrackState){
+    if (!this.ctx || !this.masterGain) return;
+    if (ts.opts.sidechain) {
+      if (!ts.duckGain) {
+        ts.duckGain = this.ctx.createGain();
+        ts.duckGain.gain.value = 1.0;
+      }
+    } else if (ts.duckGain) {
+      // disable ducking
+      ts.duckGain.gain.value = 1.0;
+    }
+  }
+
+  private routeTrack(opts:PlayOptions, _vel:number): AudioNode {
+    // Choose chain: duckGain -> masterGain
+    if (!this.ctx || !this.masterGain) return this.masterGain!;
+    // Find track state by identity (inefficient linear, ok small n)
+    let ts:TrackState|undefined; this.tracks.forEach(v => { if (v.opts === opts) ts = v; });
+    if (ts && ts.duckGain) {
+      if (!(ts.duckGain as any)._wired) { ts.duckGain.connect(this.masterGain!); (ts.duckGain as any)._wired = true; }
+      return ts.duckGain;
+    }
+    return this.masterGain!;
+  }
+
+  private applyPerTrackDuck(time:number){
+    // Iterate tracks with sidechain enabled (excluding kick origin)
+    this.tracks.forEach(ts => {
+      if (!ts.duckGain || !ts.opts.sidechain) return;
+      const g = ts.duckGain.gain;
+      const base = 1.0;
+      const depth = 0.65; // target value
+      g.cancelScheduledValues(time);
+      g.setValueAtTime(base, time);
+      g.linearRampToValueAtTime(depth, time + 0.012);
+      g.linearRampToValueAtTime(base, time + 0.32);
     });
   }
 
@@ -618,17 +669,7 @@ class LiveEngine {
     osc.stop(time + 0.11);
   }
 
-  private applySidechain(time:number){
-    // Quick patch: gentler ducking (shallower & slightly longer release)
-    if (!this.masterGain) return;
-    const g = this.masterGain.gain;
-    const base = g.value;
-    const duck = base * 0.65; // was ~0.35 depth, now milder
-    g.cancelScheduledValues(time);
-    g.setValueAtTime(base, time);
-    g.linearRampToValueAtTime(duck, time + 0.015);
-    g.linearRampToValueAtTime(base, time + 0.38);
-  }
+  // (global sidechain removed in favor of per-track duck)
 }
 
 // Singleton instance for app
