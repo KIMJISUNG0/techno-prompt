@@ -30,12 +30,19 @@ export function runLiveCode(source: string): RunResult {
     if (BLOCK_PATTERN.test(source)) {
       return { ok: false, error: 'Disallowed identifier in code.' };
     }
-    const api = buildUserAPI();
-    // Auto alias 'api' for user convenience
-    (api as any).api = api;
-    const argNames = Object.keys(api);
-    const args = argNames.map(k => (api as any)[k]);
-    const wrapped = new Function(...argNames, '"use strict";\n' + source + '\n');
+    const safeApi = buildUserAPI();
+    // Detect if user already declares api (const/let/var api ...)
+    const userDeclaresApi = /\b(?:const|let|var)\s+api\b/.test(source);
+    const argNames = Object.keys(safeApi);
+    const args = argNames.map(k => (safeApi as any)[k]);
+    let injected = '"use strict";\n';
+    if (!userDeclaresApi) {
+      // Provide convenience alias only when not declared by user
+      argNames.push('__sandbox_api');
+      args.push(safeApi);
+      injected += 'const api = __sandbox_api;\n';
+    }
+    const wrapped = new Function(...argNames, injected + source + '\n');
     wrapped(...args);
     return { ok: true };
   } catch (e:any) {
