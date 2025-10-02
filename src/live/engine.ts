@@ -178,6 +178,6 @@ export function getLiveAPI() {
     play: async (id: string, opts: PlayOptions) => { await liveEngine.startIfNeeded(); liveEngine.play(id, opts); },
     stop: (id: string) => liveEngine.stop(id),
     stopAll: () => liveEngine.stopAll(),
-    log: (...args: any[]) => console.log('[live]', ...args)
+    log: (...args: any[]) => console.warn('[live]', ...args)
   };
 }

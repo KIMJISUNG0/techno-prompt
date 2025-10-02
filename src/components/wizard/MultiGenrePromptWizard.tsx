@@ -165,7 +165,9 @@ export default function MultiGenrePromptWizard() {
     >
       <header className="mb-8 flex items-center justify-between">
         <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT WIZARD{secondTheme? ' • HYBRID':''}</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* Header Live Coding Open Button */}
+          <button onClick={()=> window.dispatchEvent(new CustomEvent('livecode.requestOpen'))} className="text-[11px] px-3 py-1 rounded border border-cyan-400/50 bg-cyan-600/20 hover:bg-cyan-600/30 hover:text-cyan-100 transition">Live Coding</button>
           {state.step!=='genre' && (
             <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>
           )}
@@ -263,6 +265,7 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
   const [includeMelody, setIncludeMelody] = useState(true);
   const [mode, setMode] = useState<'schema'|'instrument'>('schema');
   const [pickedProg, setPickedProg] = useState<string|undefined>(undefined);
+  const [compact, setCompact] = useState(false);
   const recProgs = useMemo(()=> state.genres? recommendProgressions(state.genres,5): state.genre? recommendProgressions([state.genre],5) : [], [state.genres,state.genre]);
   function buildMelodySuffix(){
     if (!includeMelody || !melodySummary) return '';
@@ -296,6 +299,10 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
         <div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter && state.meter!=='4/4' ? ' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div>
         <button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button>
       </div>
+      {/* Guidance banner */}
+      <div className="text-[10px] text-slate-500 bg-black/30 border border-slate-700 rounded px-3 py-2 leading-relaxed">
+        <span className="text-cyan-300">Compact Mode</span> 는 그룹을 접어 긴 리스트를 빠르게 스캔하도록 도와줍니다. Live Coding 패널은 우측 상단 버튼 또는 <kbd className="px-1 py-0.5 bg-slate-700/50 rounded border border-slate-600">Ctrl/Cmd + L</kbd> 로 열 수 있습니다.
+      </div>
       <div className="flex gap-2 flex-wrap text-[10px]">
         <button onClick={insertKick} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Kick to Live</button>
         <button onClick={insertHat} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Hat to Live</button>
@@ -304,6 +311,9 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
       <div className="flex gap-3 text-[11px]">
         <button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button>
         <button onClick={()=> setMode('instrument')} className={`px-3 py-1 rounded border ${mode==='instrument'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Instrument Mode</button>
+        {mode==='schema' && (
+          <button onClick={()=> setCompact(c=> !c)} className={`px-3 py-1 rounded border ${compact? 'border-emerald-400 text-emerald-200 bg-emerald-600/10':'border-slate-600 text-slate-400 hover:border-emerald-400 hover:text-emerald-200'}`}>{compact? 'Compact ON':'Compact OFF'}</button>
+        )}
       </div>
       <div className="flex items-center gap-3 text-[11px] text-slate-400">
         <label className="flex items-center gap-1 cursor-pointer select-none">
@@ -321,6 +331,7 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
               meter={state.meter}
               swing={state.swing}
               extraSuffix={[genreDescriptions, progressionSuffix, suffix].filter(Boolean).join(', ')}
+              compact={compact}
             />
           )}
           {mode==='instrument' && (
@@ -350,6 +361,18 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
 // Dock container that anchors console as a slide-over panel
 function LiveCodingDock(){
   const [open,setOpen] = useState(false);
+  useEffect(()=> {
+    function onReq(){ setOpen(true); }
+    window.addEventListener('livecode.requestOpen', onReq as any);
+    function onKey(e:KeyboardEvent){
+      if ((e.metaKey || e.ctrlKey) && (e.key==='l' || e.key==='L')) {
+        e.preventDefault();
+        setOpen(o=> !o);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return ()=> { window.removeEventListener('livecode.requestOpen', onReq as any); window.removeEventListener('keydown', onKey); };
+  },[]);
   return (
     <>
       <button onClick={()=> setOpen(o=> !o)} className="fixed bottom-4 right-4 z-40 px-3 py-2 rounded bg-cyan-600/30 backdrop-blur border border-cyan-400/50 text-[11px] hover:bg-cyan-600/40">

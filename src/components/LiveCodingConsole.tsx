@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { runLiveCode } from '../live/sandbox';
 
 interface LogEntry { ts: number; text: string; type: 'info'|'error'; }
@@ -7,7 +7,8 @@ export function LiveCodingConsole({ onClose }:{ onClose?: ()=>void }) {
   const [code, setCode] = useState<string>(`// Live coding playground\nsetBPM(130)\nplay("kick", { pattern: "x---x---x---x---" })`);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'code'|'help'>('code');
-  const insertQueue = useRef<string[]>([]);
+  // (future) queued snippet buffer if we debounce inserts
+  // const insertQueue = useRef<string[]>([]);
 
   useEffect(()=> {
     function onInsert(e: any){

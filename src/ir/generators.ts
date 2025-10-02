@@ -1,4 +1,4 @@
-import { MusicIR, TrackIR, StepPattern, EventPattern } from './schema';
+import { MusicIR, TrackIR, EventPattern } from './schema';
 
 // Utility to map simple roles to sample/synth names for demo purposes
 const TIDAL_ROLE_MAP: Record<string,string> = {
@@ -56,7 +56,7 @@ function stepsToSonicPi(steps: string, role: string): string {
   const sample = roleSampleForSonic(role);
   const stepDur = 0.25; // 16 steps in a 4/4 bar assumption
   const actions: string[] = [];
-  steps.split('').forEach((c,i)=> {
+  steps.split('').forEach((c)=> {
     if (/x/i.test(c)) actions.push(`sample ${sample}`);
     actions.push(`sleep ${stepDur}`);
   });
@@ -83,10 +83,10 @@ function trackToSonic(track: TrackIR): string | null {
 
 export function irToSonicPi(ir: MusicIR): string {
   const lines: string[] = ["# AUTO-GENERATED FROM IR", `use_bpm ${ir.meta.bpm}`];
-  ir.tracks.forEach((t,i)=> {
+  ir.tracks.forEach((t, idx)=> {
     const code = trackToSonic(t);
     if (code) {
-      lines.push(`live_loop :trk_${i+1} do\n    ${code}\n  end`);
+  lines.push(`live_loop :trk_${idx+1} do\n    ${code}\n  end`);
     }
   });
   if (ir.harmonic?.progression) lines.push(`# progression: ${ir.harmonic.progression}`);
