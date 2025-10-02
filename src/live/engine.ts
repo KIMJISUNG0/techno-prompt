@@ -737,6 +737,14 @@ export function getLiveAPI() {
   };
 }
 
+// Attach to window for browser console / sandbox code runner convenience
+// (Idempotent guard)
+declare const window: any;
+if (typeof window !== 'undefined' && !window.getLiveAPI) {
+  window.getLiveAPI = getLiveAPI;
+  window.liveAPI = getLiveAPI();
+}
+
 // --- Patch Registry (minimal Phase1) ---
 interface PatchDescriptor {
   type: PlayOptions['type'];
