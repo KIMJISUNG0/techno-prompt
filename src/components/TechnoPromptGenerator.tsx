@@ -46,6 +46,7 @@ function emptyState(): Record<GroupId, Set<string>> {
     groove: new Set(),
     performance: new Set(),
     meters: new Set(),
+    mastering: new Set(),
     params: new Set(),
   };
 }
@@ -213,7 +214,7 @@ function GroupBlock({ group, selections, setSelections, query, lang }: {
   }
 
   // When collapsed and families exist: only show primary or selected options per family
-  let displayBlocks: { title?: string; items: any[] }[] = [];
+  const displayBlocks: { title?: string; items: any[] }[] = [];
   if (hasFamily) {
     for (const [fam, list] of families) {
       const base = list as any[];

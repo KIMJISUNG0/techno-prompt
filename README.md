@@ -31,6 +31,10 @@ npm install
 ```bash
 npm run dev
 ```
+Fast 개발(일부 장르만 로드: 초기 빌드/핫리프레시 가속):
+```bash
+npm run dev:fast   # 내부적으로 VITE_LIMIT_GENRES=techno,hiphop,trap
+```
 Codespaces / 컨테이너 (고정 포트 & 외부 접속 안정):
 ```bash
 npm run dev:strict   # 0.0.0.0:5173 고정, 포트 이미 사용시 즉시 실패
@@ -68,6 +72,30 @@ npm run build
 npm run preview
 ```
 
+### 4. Taxonomy Validator
+중복 ID / 그룹 누락 / orphan subopts / universal prefix 검사:
+```bash
+npm run validate:taxonomy
+```
+
+### 5. Pre-commit Hook (자동 품질 게이트)
+`husky` 설치되어 커밋 시 순서대로 실행:
+1) validate:taxonomy
+2) typecheck (tsc --noEmit)
+3) lint (ESLint)
+
+실패 시 커밋 중단.
+
+### 6. VS Code Tasks
+명령 팔레트 → Tasks: Run Task
+ - Dev (Full)
+ - Dev (Fast Genres)
+ - Validate + Dev
+ - Local CI (validate+typecheck+build)
+
+### 7. CI
+GitHub Actions: push/PR 시 validate → build. (추후 lint/typecheck 추가 가능)
+
 ## 기술 스택
 - React 18
 - TypeScript 5
@@ -100,6 +128,8 @@ tsconfig.json
 - AI 모델 호출 연동 (OpenAI / Local)
 - 다중 프롬프트 배치 생성 모드
 - Export 시 미니메타(BPM, 날짜) 포함
+- 장르 팩 Lazy Load (dynamic import)
+- Validator 경고 레벨 세분화(JSON 리포트)
 
 ## 공유 가능한 장르 해시
 직접 장르/하이브리드 진입:

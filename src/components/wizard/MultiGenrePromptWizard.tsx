@@ -27,10 +27,10 @@ type WizardStep = 'genre' | 'bpmTime' | 'build';
 
 // Alias / fallback mapping: leaf subgenres that don't yet have a dedicated pack → base genre
 // (Prevents undefined pack lookup causing stuck loading overlay.)
+// NOTE: 기존에는 boomBap / trap / lofiBeats 가 hiphop fallback 이었으나
+// 이제 해당 장르 팩이 존재하므로 alias 제거. 향후 미구현 서브장르만 여기에 추가.
 const GENRE_ALIASES: Record<string, GenreId> = {
-  boomBap: 'hiphop',
-  trap: 'hiphop',
-  lofiBeats: 'hiphop',
+  // example: 'phonk': 'hiphop'
 };
 
 const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;range:[number,number]}> = {
@@ -82,7 +82,6 @@ export default function MultiGenrePromptWizard() {
       const first = canonical[0] as GenreId;
       setState(s=> ({...s, genre:first, genres:canonical as GenreId[], step:'bpmTime'}));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
 
   // keep hash synced when genres array is defined
