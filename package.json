@@ -5,6 +5,7 @@
   "engines": {
     "node": ">=18"
   },
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:fast": "VITE_LIMIT_GENRES=techno,hiphop,trap vite",
@@ -18,9 +19,9 @@
     "start": "npm run preview:host",
     "dev:watch": "while true; do echo '[DEV RESTART]' && vite --host 0.0.0.0; echo 'Exited with $?'; sleep 2; done",
     "health:loop": "while true; do date '+%H:%M:%S' ; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173 || true; sleep 5; done",
-    "validate:taxonomy": "node scripts/validate-taxonomy.js",
+  "validate:taxonomy": "node scripts/validate-taxonomy.cjs",
     "typecheck": "tsc --noEmit",
-  "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "ci": "npm run validate:taxonomy && npm run typecheck && npm run build",
     "prepare": "husky install"
   },

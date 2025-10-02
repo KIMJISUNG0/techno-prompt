@@ -1,11 +1,8 @@
-// Simple duplicate id validator.
-// NOTE: Source files are TypeScript; use dynamic import via transpile on-the-fly.
-require('esbuild-register');
-const { universalPack } = require('../src/data/multigenre/universal.ts');
-const { GENRE_PACKS } = require('../src/data/multigenre/genres/index.ts');
-const { OPTIONS: LEGACY_OPTIONS, GROUPS: LEGACY_GROUPS } = require('../src/data/taxonomy.ts');
-
-function main(){
+// Simple duplicate id validator (ESM compatible). TS sources are compiled by ts-node during build, but for runtime here we rely on native ESM import of .ts via Node's loader resolution in the workspace context (Vite env). If that fails in some environments, consider emitting a JS build of data first.
+async function main(){
+  const { universalPack } = await import('../src/data/multigenre/universal.ts');
+  const { GENRE_PACKS } = await import('../src/data/multigenre/genres/index.ts');
+  const { OPTIONS: LEGACY_OPTIONS, GROUPS: LEGACY_GROUPS } = await import('../src/data/taxonomy.ts');
   const ids = new Set();
   const dup = [];
   const groupSet = new Set();
@@ -47,4 +44,4 @@ function main(){
     console.log('[validate-taxonomy] OK total', ids.size, 'groups', groupSet.size);
   }
 }
-main();
+main().catch(e=> { console.error('[validate-taxonomy] exception', e); process.exit(1); });
