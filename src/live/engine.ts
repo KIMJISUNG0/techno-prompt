@@ -38,6 +38,16 @@ interface TrackState {
   stepIndex: number;
   sideGain?: GainNode; // for sidechain ducking
   duckGain?: GainNode; // per-track duck node (post-track)
+  compiled?: StepDef[];
+  compiledSrc?: string;
+}
+
+interface StepDef {
+  ch: string;        // pattern character (X x . o O -)
+  v?: number;        // velocity multiplier
+  p?: number;        // probability 0..1
+  dt?: number;       // microtiming offset seconds (+/-)
+  locks?: Record<string, any>; // param locks e.g. gain, wave, cutoff, res, detune, unison
 }
 
 class LiveEngine {
@@ -69,10 +79,29 @@ class LiveEngine {
   private compressor: DynamicsCompressorNode | null = null;
   private delayNode: DelayNode | null = null;
   private delayFeedback: GainNode | null = null;
+  // ping pong delay nodes (optional enhanced mode)
+  private ppLeftDelay: DelayNode | null = null;
+  private ppRightDelay: DelayNode | null = null;
+  private ppFeedback: GainNode | null = null;
+  private ppLeftPan: StereoPannerNode | null = null;
+  private ppRightPan: StereoPannerNode | null = null;
+  private usePingPong = false;
   private reverbNode: ConvolverNode | null = null; // simple generated impulse
   private analyser: AnalyserNode | null = null; // lightweight visualization tap
   private fftData?: Uint8Array;
   private timeData?: Uint8Array; // byte time-domain data
+  // Master processing extras
+  private masterPreSat: WaveShaperNode | null = null; // gentle saturation
+  private masterClip: WaveShaperNode | null = null; // soft clipper / limiter-ish
+  private clipCeiling = 0.95;
+  private satDrive = 1.0;
+  private reverbDuckAmount = 0.55; // portion retained on kick
+  private reverbDuckRelease = 0.6;
+  // Loudness stats (very approximate LUFS)
+  private loudnessEnergy = 0;
+  private loudnessSamples = 0;
+  private momentaryLufs = -Infinity;
+  private integratedLufs = -Infinity;
 
   ensureCtx() {
     if (!this.ctx) {
@@ -114,11 +143,28 @@ class LiveEngine {
     this.compressor.ratio.value = 3.2;
     this.compressor.attack.value = 0.005;
     this.compressor.release.value = 0.12;
+    // Pre saturation (adds harmonics prior to compression for tone)
+    this.masterPreSat = ctx.createWaveShaper();
+    this.updateSaturationCurve();
+    // Soft clipper after compressor -> acts like limiter ceiling
+    this.masterClip = ctx.createWaveShaper();
+    this.updateClipCurve();
     // Delay
     this.delaySend = ctx.createGain(); this.delaySend.gain.value = 0.0;
     this.delayNode = ctx.createDelay(1.5); this.delayNode.delayTime.value = 0.3;
     this.delayFeedback = ctx.createGain(); this.delayFeedback.gain.value = 0.35;
     this.delayNode.connect(this.delayFeedback).connect(this.delayNode);
+    // Ping pong delay set (disabled by default)
+    this.ppLeftDelay = ctx.createDelay(2.0); this.ppRightDelay = ctx.createDelay(2.0);
+    this.ppFeedback = ctx.createGain(); this.ppFeedback.gain.value = 0.38;
+    this.ppLeftPan = ctx.createStereoPanner(); this.ppLeftPan.pan.value = -0.85;
+    this.ppRightPan = ctx.createStereoPanner(); this.ppRightPan.pan.value = 0.85;
+    // chain: send -> leftDelay -> leftPan -> master ; leftDelay -> rightDelay -> rightPan -> master ; rightDelay -> leftDelay (feedback)
+    this.ppLeftDelay.connect(this.ppLeftPan).connect(this.masterGain);
+    this.ppRightDelay.connect(this.ppRightPan).connect(this.masterGain);
+    // cross feedback
+    this.ppLeftDelay.connect(this.ppRightDelay);
+    this.ppRightDelay.connect(this.ppFeedback).connect(this.ppLeftDelay);
     // Reverb (procedural impulse)
     this.reverbSend = ctx.createGain(); this.reverbSend.gain.value = 0.0;
     this.reverbNode = ctx.createConvolver();
@@ -128,14 +174,55 @@ class LiveEngine {
     this.delayNode.connect(this.masterGain);
     this.reverbSend.connect(this.reverbNode).connect(this.masterGain);
     this.delaySend.connect(this.delayNode);
+    // master chain: masterGain -> compressor -> clipper -> analyser -> destination
+    // (preSat inserted before masterGain input via play routing path, so existing track routes go through preSat)
+    // Actually reroute: track outs -> masterPreSat -> masterGain
+    this.masterPreSat.connect(this.masterGain);
     this.masterGain.connect(this.compressor);
+    this.compressor.connect(this.masterClip);
     // analyser tap after compressor (post-FX)
     this.analyser = ctx.createAnalyser();
     this.analyser.fftSize = 256; // 128 frequency bins (low overhead)
     this.analyser.smoothingTimeConstant = 0.82;
-    this.compressor.connect(this.analyser).connect(ctx.destination);
+    this.masterClip.connect(this.analyser).connect(ctx.destination);
     this.fftData = new Uint8Array(this.analyser.frequencyBinCount);
     this.timeData = new Uint8Array(this.analyser.fftSize); // time domain size equals fftSize
+  }
+
+  private updateSaturationCurve(){
+    if (!this.masterPreSat) return;
+    const k = this.satDrive * 2.5 + 0.0001;
+    const n = 1024;
+    const curve = new Float32Array(n);
+    for (let i=0;i<n;i++){
+      const x = (i/(n-1))*2-1;
+      // arctangent saturation
+      curve[i] = Math.atan(k * x)/Math.atan(k);
+    }
+    this.masterPreSat.curve = curve;
+    this.masterPreSat.oversample = '2x';
+  }
+
+  private updateClipCurve(){
+    if (!this.masterClip) return;
+    const n = 1024; const curve = new Float32Array(n);
+    const c = this.clipCeiling;
+    for (let i=0;i<n;i++){
+      const x = (i/(n-1))*2-1;
+      // soft clip (cubic) towards ceiling
+      let y = x;
+      const abs = Math.abs(x);
+      if (abs > c*0.6){
+        // gentle bend
+        y = Math.sign(x) * (c - (c - abs) * 0.4);
+      }
+      if (abs > c){
+        y = Math.sign(x) * c;
+      }
+      curve[i] = y;
+    }
+    this.masterClip.curve = curve;
+    this.masterClip.oversample = '4x';
   }
 
   private makeImpulse(ctx: AudioContext, duration: number, decay: number){
@@ -227,14 +314,42 @@ class LiveEngine {
 
   private scheduleFrame(time: number) {
     this.tracks.forEach(ts => {
-      const { pattern } = ts.opts;
-      const steps = pattern.trim();
-      if (steps.length === 0) return;
+      const pattern = ts.opts.pattern;
+      if (!pattern) return;
+      if (!ts.compiled || ts.compiledSrc !== pattern) {
+        ts.compiled = this.compilePattern(pattern);
+        ts.compiledSrc = pattern;
+      }
+      const steps = ts.compiled || [];
+      if (!steps.length) return;
       const idx = ts.stepIndex % steps.length;
-      const char = steps[idx];
-      if (char && char !== '-' && char !== ' ') {
-        const velocity = this.mapVelocity(ts.opts, char);
-        if (velocity>0) this.trigger(ts, time + this.swingOffset(idx), idx, velocity);
+      const step = steps[idx];
+      if (step.ch && step.ch !== '-' && step.ch !== ' ') {
+        if (step.p != null && Math.random() > step.p) {
+          // probability skip
+        } else {
+          const baseVel = this.mapVelocity(ts.opts, step.ch);
+          const vel = baseVel * (step.v ?? 1);
+          if (vel > 0) {
+            let effectiveOpts = ts.opts;
+            if (step.locks && Object.keys(step.locks).length) {
+              const clone:PlayOptions = { ...ts.opts };
+              if (step.locks.gain != null) clone.gain = step.locks.gain;
+              if (step.locks.wave) clone.wave = step.locks.wave;
+              if (step.locks.detune != null) clone.detune = step.locks.detune;
+              if (step.locks.unison != null) clone.unison = step.locks.unison;
+              if (step.locks.cutoff != null) {
+                clone.filter = { ...(clone.filter||{ type:'lowpass', cutoff: step.locks.cutoff }), cutoff: step.locks.cutoff } as any;
+              }
+              if (step.locks.res != null) {
+                clone.filter = { ...(clone.filter||{ type:'lowpass', cutoff: 800 }), q: step.locks.res } as any;
+              }
+              effectiveOpts = clone;
+            }
+            const micro = step.dt || 0;
+            this.triggerWithOpts(ts, time + this.swingOffset(idx) + micro, idx, vel, effectiveOpts);
+          }
+        }
       }
       ts.stepIndex++;
     });
@@ -267,53 +382,60 @@ class LiveEngine {
   }
 
   private trigger(ts: TrackState, time: number, hitIndex: number, vel: number) {
+    return this.triggerWithOpts(ts, time, hitIndex, vel, ts.opts);
+  }
+
+  private triggerWithOpts(ts: TrackState, time:number, hitIndex:number, vel:number, opts:PlayOptions){
     if (!this.ctx) return;
-    const role = this.inferRole(ts.opts.type || ts.id);
-    if (role === 'kick') this.playKick(time, ts.opts, vel);
-    else if (role === 'snare') this.playSnare(time, ts.opts, vel);
-    else if (role === 'hat') this.playHat(time, ts.opts, vel);
-    else if (role === 'bass') {
-      const note = this.pickNote(ts.opts, hitIndex);
-      if (note != null) this.playBass(time, ts.opts, note, vel);
-    } else if (role === 'pad') {
-      const note = this.pickNote(ts.opts, hitIndex) ?? 48;
-      this.playPad(time, ts.opts, note, vel);
-    } else if (role === 'lead') {
-      const note = this.pickNote(ts.opts, hitIndex) ?? 60;
-      this.playLead(time, ts.opts, note, vel);
-    } else if (role === 'guitar') {
-      const note = this.pickNote(ts.opts, hitIndex) ?? 52; // E3-ish
-      this.playGuitar(time, ts.opts, note, vel);
-    } else if (role === 'bassGtr') {
-      const note = this.pickNote(ts.opts, hitIndex) ?? 36; // C2 fallback
-      this.playBassGuitar(time, ts.opts, note, vel);
-    } else if (role === 'piano') {
-      const note = this.pickNote(ts.opts, hitIndex) ?? 60;
-      this.playPiano(time, ts.opts, note, vel);
-    } else if (role === 'organ') {
-      const note = this.pickNote(ts.opts, hitIndex) ?? 60;
-      this.playOrgan(time, ts.opts, note, vel);
-    } else if (role === 'tom') {
-      this.playTom(time, ts.opts, vel);
-    } else if (role === 'clap') {
-      this.playClap(time, ts.opts, vel);
-    } else if (role === 'ride') {
-      this.playRide(time, ts.opts, vel);
-    } else this.playClick(time, ts.opts, vel);
-    // sidechain duck if kick
-  if (role === 'kick') this.applyPerTrackDuck(time);
-    // Dispatch a hit event close to actual audio time (scheduled ahead)
+    const role = this.inferRole(opts.type || ts.id);
+    if (role === 'kick') this.playKick(time, opts, vel);
+    else if (role === 'snare') this.playSnare(time, opts, vel);
+    else if (role === 'hat') this.playHat(time, opts, vel);
+    else if (role === 'bass') { const note = this.pickNote(opts, hitIndex); if (note != null) this.playBass(time, opts, note, vel); }
+    else if (role === 'pad') { const note = this.pickNote(opts, hitIndex) ?? 48; this.playPad(time, opts, note, vel); }
+    else if (role === 'lead') { const note = this.pickNote(opts, hitIndex) ?? 60; this.playLead(time, opts, note, vel); }
+    else if (role === 'guitar') { const note = this.pickNote(opts, hitIndex) ?? 52; this.playGuitar(time, opts, note, vel); }
+    else if (role === 'bassGtr') { const note = this.pickNote(opts, hitIndex) ?? 36; this.playBassGuitar(time, opts, note, vel); }
+    else if (role === 'piano') { const note = this.pickNote(opts, hitIndex) ?? 60; this.playPiano(time, opts, note, vel); }
+    else if (role === 'organ') { const note = this.pickNote(opts, hitIndex) ?? 60; this.playOrgan(time, opts, note, vel); }
+    else if (role === 'tom') { this.playTom(time, opts, vel); }
+    else if (role === 'clap') { this.playClap(time, opts, vel); }
+    else if (role === 'ride') { this.playRide(time, opts, vel); }
+    else this.playClick(time, opts, vel);
+    if (role === 'kick') this.applyPerTrackDuck(time);
     try {
       const delayMs = Math.max(0, (time - this.ctx.currentTime) * 1000);
       const detail = { role, id: ts.id, velocity: vel, index: hitIndex, when: time };
-      if (delayMs < 4) {
-        window.dispatchEvent(new CustomEvent('liveaudio.hit', { detail }));
-      } else {
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('liveaudio.hit', { detail }));
-        }, delayMs);
+      if (delayMs < 4) window.dispatchEvent(new CustomEvent('liveaudio.hit', { detail }));
+      else setTimeout(()=> window.dispatchEvent(new CustomEvent('liveaudio.hit', { detail })), delayMs);
+    } catch {/* ignore */}
+  }
+
+  private compilePattern(pattern:string): StepDef[] {
+    const out:StepDef[] = [];
+  const re = /([Xx.oO-])(?:\{([^}]+)\})?/g; // pattern char with optional {..} modifiers
+    let m:RegExpExecArray|null;
+    while ((m = re.exec(pattern))){
+      const step:StepDef = { ch: m[1] };
+      if (m[2]) {
+        m[2].split(/\s*,\s*/).forEach(seg => {
+          if (!seg) return;
+          const [kRaw,vRaw] = seg.split(/=/);
+          const k = kRaw?.trim(); if (!k) return;
+          const vStr = (vRaw||'').trim();
+          if (k==='v'){ const num = parseFloat(vStr); if (!isNaN(num)) step.v = num; }
+          else if (k==='p'){ const num = parseFloat(vStr); if (!isNaN(num)) step.p = Math.min(1,Math.max(0,num)); }
+          else if (k==='dt'){ const num = parseFloat(vStr); if (!isNaN(num)) step.dt = num/1000; }
+          else {
+            if (!step.locks) step.locks = {};
+            const num = parseFloat(vStr);
+            step.locks[k] = isNaN(num)? vStr : num;
+          }
+        });
       }
-  } catch {/* swallow dispatch timing errors */}
+      out.push(step);
+    }
+    return out;
   }
 
   private inferRole(id: string): string {
@@ -578,6 +700,16 @@ class LiveEngine {
       g.linearRampToValueAtTime(depth, time + 0.012);
       g.linearRampToValueAtTime(base, time + 0.32);
     });
+    // Reverb ducking
+    if (this.reverbSend){
+      const g = this.reverbSend.gain;
+      const current = g.value;
+      const target = current * this.reverbDuckAmount;
+      g.cancelScheduledValues(time);
+      g.setValueAtTime(current, time);
+      g.linearRampToValueAtTime(target, time + 0.02);
+      g.linearRampToValueAtTime(current, time + this.reverbDuckRelease);
+    }
   }
 
   // --- New Band / Acoustic-ish Instruments ---
@@ -733,6 +865,22 @@ export function getLiveAPI() {
     getAnalyser: () => (liveEngine as any).getAnalyserData?.(),
     getPerf: () => (liveEngine as any).getPerfStats?.(),
     resetPerf: () => (liveEngine as any).resetPerf?.(),
+    // Master polish controls
+    setSaturation: (drive:number) => { (liveEngine as any).satDrive = Math.max(0,drive); (liveEngine as any).updateSaturationCurve?.(); },
+    setClipCeiling: (ceil:number) => { (liveEngine as any).clipCeiling = Math.min(0.999, Math.max(0.2, ceil)); (liveEngine as any).updateClipCurve?.(); },
+    configureDelay: (opts:{ time?:number; feedback?:number; mix?:number; pingpong?:boolean }) => {
+      const eng:any = liveEngine;
+      if (opts.time!=null){ if (eng.delayNode) eng.delayNode.delayTime.value = opts.time; if (eng.ppLeftDelay) eng.ppLeftDelay.delayTime.value = opts.time; if (eng.ppRightDelay) eng.ppRightDelay.delayTime.value = opts.time; }
+      if (opts.feedback!=null){ if (eng.delayFeedback) eng.delayFeedback.gain.value = opts.feedback; if (eng.ppFeedback) eng.ppFeedback.gain.value = opts.feedback; }
+      if (opts.mix!=null){ if (eng.delaySend) eng.delaySend.gain.value = opts.mix; }
+      if (opts.pingpong!=null){ eng.usePingPong = !!opts.pingpong; }
+    },
+    setReverb: (mix:number) => { const eng:any = liveEngine; if (eng.reverbSend) eng.reverbSend.gain.value = mix; },
+    setReverbDuck: (amount:number, release?:number) => { const eng:any = liveEngine; eng.reverbDuckAmount = Math.min(0.95, Math.max(0.05, amount)); if (release!=null) eng.reverbDuckRelease = Math.max(0.1, release); },
+    getLoudness: () => { return { momentary:(liveEngine as any).momentaryLufs, integrated:(liveEngine as any).integratedLufs }; },
+    setStereoWidth: (w:number) => { (liveEngine as any).updateStereoWidth?.(w); },
+    setLowMono: (freq:number) => { (liveEngine as any).updateLowMono?.(freq); },
+    compilePattern: (p:string) => (liveEngine as any).compilePattern?.(p),
     log: (...args: any[]) => console.warn('[live]', ...args)
   };
 }
@@ -776,6 +924,18 @@ const patchRegistry = new PatchRegistry();
   if (!this.analyser || !this.fftData || !this.timeData) return null;
   this.analyser.getByteFrequencyData(this.fftData);
   this.analyser.getByteTimeDomainData(this.timeData);
+  // Loudness (very rough): compute RMS of frame & integrate
+  let sum = 0;
+  for (let i=0;i<this.timeData.length;i++){
+    const x = (this.timeData[i]-128)/128; sum += x*x;
+  }
+  const rms = Math.sqrt(sum/this.timeData.length) + 1e-9;
+  // Convert to pseudo LUFS (no K-weighting) relative to full scale sine (approx offset -0.691)
+  this.momentaryLufs = 20*Math.log10(rms) - 0.691;
+  this.loudnessEnergy += sum;
+  this.loudnessSamples += this.timeData.length;
+  const integratedRms = Math.sqrt(this.loudnessEnergy/this.loudnessSamples) + 1e-9;
+  this.integratedLufs = 20*Math.log10(integratedRms) - 0.691;
   return {
     freq: this.fftData,
     time: this.timeData,
