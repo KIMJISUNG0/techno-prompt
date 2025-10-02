@@ -41,6 +41,10 @@ interface TrackState {
 
 class LiveEngine {
   private ctx: AudioContext | null = null;
+  private workletReady: Promise<boolean> | null = null;
+  private useHQ = false; // toggled when worklet loads
+  private wlPort: MessagePort | null = null;
+  private wlIdCounter = 0;
   private bpm = 130;
   private tracks = new Map<string, TrackState>();
   private timer: number | null = null;
@@ -65,9 +69,31 @@ class LiveEngine {
     if (!this.ctx) {
       this.ctx = new AudioContext();
       this.setupBuses();
+      this.initWorklet();
     }
     return this.ctx;
   }
+
+  private async initWorklet(){
+    if (!this.ctx) return;
+    if (this.workletReady) return;
+    this.workletReady = (async () => {
+      try {
+        await this.ctx!.audioWorklet.addModule('/src/live/worklets/bandlimited-osc-worklet.js');
+        // create a dummy node via AudioWorkletNode for future param hooking (output mixed per voice internally)
+        const node = new AudioWorkletNode(this.ctx!, 'bandlimited-osc', { numberOfOutputs:1, outputChannelCount:[1] });
+        node.connect(this.masterGain!);
+        this.wlPort = node.port;
+        this.useHQ = true;
+        return true;
+      } catch (e){
+        console.warn('[live-engine] worklet load failed, fallback standard osc', e);
+        this.useHQ = false; return false;
+      }
+    })();
+  }
+
+  setQuality(q:'high'|'standard'){ this.useHQ = (q==='high'); }
 
   private setupBuses(){
     if (!this.ctx) return;
@@ -339,6 +365,10 @@ class LiveEngine {
     const ctx = this.ctx!;
     const decay = opts.decay ?? 0.35;
     const freq = 440 * Math.pow(2, (note - 69) / 12);
+    if (this.useHQ && (opts.wave==='saw' || opts.wave==='square' || opts.wave==='supersaw')) {
+      this.sendHQVoices(time, [{ id:'b'+(++this.wlIdCounter), freq, gain:(opts.gain ?? 0.6)*vel, wave:'saw', env: { attack:0.005, decay:decay*0.6, sustain:0.4, release:decay*0.4 } }], opts);
+      return;
+    }
     const out = ctx.createGain();
     out.gain.setValueAtTime((opts.gain ?? 0.6)*vel, time);
     out.gain.exponentialRampToValueAtTime(0.0001, time+decay);
@@ -384,6 +414,18 @@ class LiveEngine {
   private playPad(time:number, opts:PlayOptions, note:number, vel:number){
     const ctx = this.ctx!;
     const freq = 440 * Math.pow(2,(note-69)/12);
+    if (this.useHQ && (opts.wave==='saw' || opts.wave==='square' || opts.wave==='supersaw')) {
+      const unison = (opts.wave==='supersaw' ? (opts.unison||6) : 1);
+      const det = (opts.detune ?? 18)/2;
+      const voices = [] as any[];
+      for (let i=0;i<unison;i++){
+        const spread = (i-(unison-1)/2)/((unison-1)/2 || 1);
+        const cents = spread * det;
+        voices.push({ id:'p'+(++this.wlIdCounter)+'_'+i, freq: freq*Math.pow(2,cents/1200), gain: ((opts.gain ?? 0.5)*vel)/unison, wave:'saw', env:{ attack:0.35, decay:0.7, sustain:0.65, release:2.2 } });
+      }
+      this.sendHQVoices(time, voices, opts);
+      return;
+    }
     const out = ctx.createGain(); out.connect(this.masterGain!);
     const attack = opts.env?.attack ?? 0.35;
     const decay = opts.env?.decay ?? 0.7;
@@ -416,6 +458,18 @@ class LiveEngine {
   private playLead(time:number, opts:PlayOptions, note:number, vel:number){
     const ctx = this.ctx!;
     const baseFreq = 440 * Math.pow(2,(note-69)/12);
+    if (this.useHQ && (opts.wave==='saw' || opts.wave==='square' || opts.wave==='supersaw')) {
+      const unison = (opts.wave==='supersaw' ? (opts.unison||6) : 1);
+      const det = (opts.detune ?? 16)/2;
+      const voices:any[] = [];
+      for (let i=0;i<unison;i++){
+        const spread = (i-(unison-1)/2)/((unison-1)/2 || 1);
+        const cents = spread * det;
+        voices.push({ id:'l'+(++this.wlIdCounter)+'_'+i, freq: baseFreq*Math.pow(2,cents/1200), gain: ((opts.gain ?? 0.55)*vel)/unison, wave:'saw', env:{ attack:0.008, decay:0.22, sustain:0.45, release:0.28 } });
+      }
+      this.sendHQVoices(time, voices, opts);
+      return;
+    }
     const out = ctx.createGain(); out.connect(this.masterGain!);
     const attack = opts.env?.attack ?? 0.008;
     const decay = opts.env?.decay ?? 0.22;
@@ -442,6 +496,19 @@ class LiveEngine {
     out.gain.linearRampToValueAtTime((opts.gain ?? 0.55)*vel, time+attack);
     out.gain.linearRampToValueAtTime((opts.gain ?? 0.55)*vel*sus, time+attack+decay);
     out.gain.linearRampToValueAtTime(0.0001, time+attack+decay+rel);
+  }
+
+  private sendHQVoices(time:number, voices:any[], _opts:PlayOptions){
+    if (!this.wlPort) return; // fallback silent if race
+    voices.forEach(v => {
+      this.wlPort!.postMessage({ type:'noteOn', id:v.id, freq:v.freq, gain:v.gain, wave:v.wave==='square'?'square':'saw', attack:v.env.attack, decay:v.env.decay, sustain:v.env.sustain, release:v.env.release, time });
+      // schedule release message (simple) - envelope lengths sum
+      const offTime = time + v.env.attack + v.env.decay + v.env.release + 0.05;
+      // use setTimeout relative to currentTime
+      const ctxNow = this.ctx?.currentTime || 0;
+      const delayMs = Math.max(0, (offTime - ctxNow)*1000);
+  setTimeout(()=>{ if (this.wlPort) this.wlPort.postMessage({ type:'noteOff', id:v.id, time: offTime }); }, delayMs);
+    });
   }
 
   // --- New Band / Acoustic-ish Instruments ---
