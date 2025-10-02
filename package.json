@@ -5,7 +5,6 @@
   "engines": {
     "node": ">=18"
   },
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:fast": "VITE_LIMIT_GENRES=techno,hiphop,trap vite",
