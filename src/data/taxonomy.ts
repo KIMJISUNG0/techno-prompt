@@ -175,6 +175,15 @@ export const OPTIONS: Opt[] = [
   o("headroom", "-6 dB Headroom", "-6 dB headroom", "mix"),
   o("tiltBright", "Tilt Bright", "tilt eq bright lift", "mix"),
   o("spaceCtrl", "Space Control", "controlled ambience decay", "mix"),
+  // --- 새 Mix 확장 (스타일 다양화) ---
+  o("transientEdge", "Transient Edge", "defined transient edge", "mix", { tags:["transient"] }),
+  o("midContour", "Mid Contour", "midrange contour focus", "mix"),
+  o("airSheen", "Air Sheen", "silky high-air sheen", "mix", { tags:["air"] }),
+  o("depthLayer", "Depth Layer", "layered depth staging", "mix"),
+  o("parallelGlue", "Parallel Glue", "parallel glue bus", "mix", { tags:["parallel"] }),
+  o("subFocus", "Sub Focus", "focused sub articulation", "mix", { tags:["sub"] }),
+  o("stereoStage", "Stereo Stage", "stereo stage shaping", "mix"),
+  o("phaseTidy", "Phase Tidy", "phase alignment tidy-up", "mix", { tags:["phase"] }),
 
   // Processing
   o("tapeSat", "Tape Sat", "tape style saturation", "processing"),
@@ -334,6 +343,16 @@ export const OPTIONS: Opt[] = [
   o("mstAirLift", "Air Lift", "subtle master air lift", "mastering", { tags:["air","lift"] }),
   o("mstToneTilt", "Tone Tilt", "broad tone tilt balance", "mastering", { tags:["tilt","tone"] }),
   o("mstLufsTarget", "LUFS Target", "final loudness target set", "mastering", { tags:["lufs","target"] }),
+  // --- 새 Mastering 확장 ---
+  o("mstLimiter2", "Limiter 2", "secondary limiter stage", "mastering", { tags:["limiter"] }),
+  o("mstSoftClip", "Soft Clip", "soft clip tone", "mastering", { tags:["clip"] }),
+  o("mstTransientTame", "Transient Tame", "transient taming stage", "mastering", { tags:["transient"] }),
+  o("mstExciterBroad", "Broad Exciter", "broadband exciter", "mastering", { tags:["exciter"] }),
+  o("mstStereoFocus", "Stereo Focus", "stereo focus enhancement", "mastering", { tags:["stereo"] }),
+  o("mstGlueEnhance", "Glue Enhance", "enhanced master glue", "mastering", { tags:["glue"] }),
+  o("mstAirPolish", "Air Polish", "final air polish lift", "mastering", { tags:["air"] }),
+  o("mstMicroDynamic", "Micro Dynamic", "micro dynamic control", "mastering", { tags:["dynamic"] }),
+  o("mstLoudnessMatch", "Loudness Match", "reference loudness match", "mastering", { tags:["reference"] }),
 ];
 
 export const ORDER: GroupId[] = [

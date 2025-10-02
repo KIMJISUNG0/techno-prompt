@@ -12,6 +12,8 @@ export const universalPack: UniversalPack = {
     g('fx','FX & Texture'),
     g('processing','Processing'),
     g('mix','Mix'),
+    // 새로 추가: 마스터링 공통 그룹 (모든 장르 공용 기본 마스터 처리)
+    g('mastering','Mastering'),
     g('params','Detail Params'),
   ],
   options: [
@@ -115,6 +117,25 @@ export const universalPack: UniversalPack = {
     o('univ-mix-wide','Stereo Width','wide stereo image','mix',{family:'stereo',primary:true,tags:['imaging']}),
     o('univ-mix-loudRef','Loudness Ref','match perceived loudness','mix',{family:'reference',tags:['workflow']}),
     o('univ-mix-headroom','Headroom Prep','-6dB headroom prep','mix',{family:'gain',tags:['mastering']}),
+  // --- Mix (추가 다양화) ---
+  o('univ-mix-transientFocus','Transient Focus','focused transient definition','mix',{family:'detail',tags:['transient']}),
+  o('univ-mix-midForward','Mid Forward','midrange forward presence','mix',{family:'tone',tags:['mid']}),
+  o('univ-mix-airControl','Air Control','controlled high-air sheen','mix',{family:'air',tags:['high']}),
+  o('univ-mix-depthSpace','Depth Space','depth layering & contrast','mix',{family:'depth',tags:['stage']}),
+  o('univ-mix-glueParallel','Parallel Glue','parallel bus glue blend','mix',{family:'parallel',tags:['glue']}),
+  o('univ-mix-subFocus','Sub Focus','focused sub energy','mix',{family:'low',tags:['sub','low']}),
+
+  // --- Mastering (공용) ---
+  o('univ-master-limiter','Master Limiter','transparent peak limiting','mastering',{family:'limiter',primary:true,tags:['ceiling']}),
+  o('univ-master-headroom','Master Headroom','final headroom staging','mastering',{family:'gain',tags:['headroom']}),
+  o('univ-master-dynamicEq','Master Dynamic EQ','dynamic tonal balancing','mastering',{family:'eq',tags:['dynamic','bal'] }),
+  o('univ-master-stereoStage','Stereo Stage','stereo stage refinement','mastering',{family:'stereo',tags:['width']}),
+  o('univ-master-transientTame','Transient Tame','micro transient taming','mastering',{family:'transient',tags:['control']}),
+  o('univ-master-exciter','Master Exciter','broadband harmonic excite','mastering',{family:'exciter',tags:['air']}),
+  o('univ-master-glue','Master Glue','broadband gentle glue','mastering',{family:'glue',tags:['cohesion']}),
+  o('univ-master-clipStage','Clip Stage','controlled soft clip stage','mastering',{family:'clip',tags:['drive']}),
+  o('univ-master-psrCheck','PSR Check','peak to short-term ratio check','mastering',{family:'meter',tags:['psr']}),
+  o('univ-master-lufsTarget','LUFS Target','final loudness calibration','mastering',{family:'meter',tags:['lufs']}),
 
     // --- Detail Params (macro style) ---
     o('univ-param-preDelay40','Pre-delay 40ms','reverb pre-delay 40ms','params',{tags:['reverb']}),
