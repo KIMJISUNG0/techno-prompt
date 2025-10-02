@@ -175,7 +175,7 @@ export default function MelodyRecorder({ onResult }: Props) {
           scaleCandidates: scaleCands || undefined,
           events: ev
         };
-      } catch(e){ /* swallow */ }
+  } catch{ /* swallow */ }
       onResult?.(summary);
     };
     rec.start();
@@ -304,13 +304,7 @@ function hzToNote(freq: number){
   return { midi, name };
 }
 
-function guessKey(rootNote: string | null): string | null {
-  if (!rootNote) return null;
-  // Very naive: map note to possible common electronic keys preference (minor)
-  const base = rootNote.replace(/\d+/,'');
-  const minorPreference = base + ' minor';
-  return minorPreference;
-}
+// Removed guessKey (unused) to satisfy lint unused-vars.
 
 // Very simple scale ranking: count how many note classes fall inside each scale template
 const SCALE_TEMPLATES: { scale: string; notes: string[] }[] = (()=> {

@@ -42,9 +42,7 @@ export default function SchemaPromptBuilder({ schema, bpm, meter, swing, extraSu
   }
   function addSub(id:string){ setParams(p=> new Set([...p,id])); }
 
-  const allSelectedIds = useMemo(()=> {
-    return Object.values(sel).flatMap(s=> [...s]);
-  },[sel]);
+  // NOTE: Previously computed union of selected ids (allSelectedIds) was unused; removed to silence lint warning.
 
   const optionIndex = useMemo(()=> new Map(schema.options.map(o=> [o.id,o])),[schema.options]);
   const suboptIndex = schema.subopts;
@@ -131,6 +129,7 @@ export default function SchemaPromptBuilder({ schema, bpm, meter, swing, extraSu
                   {g.universal && <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-400/30 text-cyan-300">UNI</span>}
                 </div>
                 {(() => {
+                  // inline IIFE kept for localized scope; not empty.
                   const filteredByTag = tagFilters.size===0 ? sorted : sorted.filter(o=> {
                     if (!o.tags) return tagMode==='NOT'? true : false;
                     if (tagMode==='OR') {

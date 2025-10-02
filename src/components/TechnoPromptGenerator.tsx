@@ -87,7 +87,7 @@ function useLocalStorage<T>(key: string, initial: T) {
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
+    } catch {/* persist skipped (quota / privacy mode) */}
   }, [key, value]);
   return [value, setValue] as const;
 }
@@ -186,11 +186,13 @@ function GroupBlock({ group, selections, setSelections, query, lang }: {
   // group by family if any family exists
   const families = new Map<string, any[]>();
   let hasFamily = false;
-  for (const opt of filtered) {
+  if (filtered.length > 0) {
+    for (const opt of filtered) {
     if (opt.family) {
       hasFamily = true;
       if (!families.has(opt.family)) families.set(opt.family, []);
       families.get(opt.family)!.push(opt);
+    }
     }
   }
 
@@ -491,7 +493,7 @@ export default function TechnoPromptGenerator() {
         if (Array.isArray(parsed)) {
           setPresets(parsed.concat(presets));
         }
-      } catch {}
+      } catch {/* ignore parse error */}
     });
   }
 
@@ -765,8 +767,8 @@ function deserializeSelections(obj: any): Record<GroupId, Set<string>> {
   const s = emptyState();
   for (const k of Object.keys(s)) {
     const list = obj?.[k] ?? [];
-    // @ts-ignore
-    s[k] = new Set(list);
+  // @ts-expect-error: dynamic reconstruction of selections from parsed object
+  s[k] = new Set(list);
   }
   return s;
 }

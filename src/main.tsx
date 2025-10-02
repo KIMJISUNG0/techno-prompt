@@ -16,7 +16,7 @@ import GenrePortal from './components/portal/GenrePortal';
         (window as any).__pickedGenres = list;
       }
     }
-  } catch {}
+  } catch { /* ignore hash parse errors */ }
 })();
 
 function RootChooser() {

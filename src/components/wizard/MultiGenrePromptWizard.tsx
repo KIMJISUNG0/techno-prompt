@@ -93,7 +93,7 @@ export default function MultiGenrePromptWizard() {
         const other = existing.split('&').filter(x=> !x.startsWith('#g=') && !x.startsWith('g=')).join('&');
         const newHash = `#g=${enc}` + (other? '&'+other.replace('#',''):'');
         if (existing !== newHash) window.location.replace(newHash);
-      } catch {}
+  } catch {/* no-op */}
     }
   }, [state.genres]);
   function confirmBpm(values:{bpm:number; meter:string; swing?:number}) {

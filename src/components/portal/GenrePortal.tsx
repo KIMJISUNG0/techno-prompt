@@ -72,7 +72,7 @@ export default function GenrePortal({ onPick, allowHybrid=true, maxHybrid=2 }: G
   const [recent, setRecent] = useState<string[]>(()=> {
     try { const v = localStorage.getItem('recent.genres'); return v? JSON.parse(v): []; } catch { return []; }
   });
-  useEffect(()=> { try { localStorage.setItem('recent.genres', JSON.stringify(recent.slice(0,8))); } catch {} }, [recent]);
+  useEffect(()=> { try { localStorage.setItem('recent.genres', JSON.stringify(recent.slice(0,8))); } catch {/* ignore persist error */} }, [recent]);
 
   function currentLevel(): TopGenre[] {
     if (path.length===0) return GENRE_TREE;
@@ -99,7 +99,7 @@ export default function GenrePortal({ onPick, allowHybrid=true, maxHybrid=2 }: G
           window.location.hash = newHash;
         }
       }
-    } catch {}
+    } catch {/* ignore hash update error (e.g., unsupported env) */}
     onPick(ids);
   }
 
