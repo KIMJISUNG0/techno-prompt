@@ -1,3 +1,4 @@
+// CLEAN REWRITE (dual-mode wizard: classic + sequential)
 import React, { useState, useEffect, useMemo } from 'react';
 import { LiveCodingConsole } from '../LiveCodingConsole';
 import { universalPack } from '../../data/multigenre/universal';
@@ -10,380 +11,115 @@ import MelodyRecorder from '../melody/MelodyRecorder';
 import InstrumentPromptBuilder from '../InstrumentPromptBuilder';
 import { recommendProgressions } from '../../data/progressions';
 
-// --- gradient extraction helpers (best-effort: parse 'from-colorX via-colorY to-colorZ') ---
-function extractFirstColor(gradient:string){
-  const m = gradient.split(' ').find(t=> t.startsWith('from-')); return m? colorTokenToCss(m.replace('from-','')): '#22d3ee';
-}
-function extractMiddleColor(gradient:string){
-  const m = gradient.split(' ').find(t=> t.startsWith('via-')); return m? colorTokenToCss(m.replace('via-','')): extractFirstColor(gradient);
-}
-function extractLastColor(gradient:string){
-  const m = gradient.split(' ').find(t=> t.startsWith('to-')); return m? colorTokenToCss(m.replace('to-','')): '#d946ef';
-}
-// map a tailwind color token roughly to a CSS variable or hex (simplified palette subset)
-const COLOR_MAP: Record<string,string> = {
-  'cyan-400':'#22d3ee','teal-300':'#5eead4','fuchsia-400':'#e879f9','amber-400':'#fbbf24','lime-300':'#bef264','pink-400':'#f472b6','rose-300':'#fda4af','orange-300':'#fdba74','indigo-400':'#6366f1','violet-300':'#c4b5fd','sky-400':'#38bdf8','emerald-300':'#6ee7b7','purple-400':'#a855f7','yellow-200':'#fef08a','stone-300':'#d6d3d1','amber-300':'#fcd34d','yellow-400':'#facc15'
-};
-function colorTokenToCss(token:string){ return COLOR_MAP[token] || '#22d3ee'; }
+// ------------- gradient utility helpers -------------
+function extractFirstColor(g:string){ const m=g.split(' ').find(t=>t.startsWith('from-')); return m? colorTokenToCss(m.replace('from-','')):'#22d3ee'; }
+function extractMiddleColor(g:string){ const m=g.split(' ').find(t=>t.startsWith('via-')); return m? colorTokenToCss(m.replace('via-','')):extractFirstColor(g); }
+function extractLastColor(g:string){ const m=g.split(' ').find(t=>t.startsWith('to-')); return m? colorTokenToCss(m.replace('to-','')):'#d946ef'; }
+const COLOR_MAP: Record<string,string>={ 'cyan-400':'#22d3ee','teal-300':'#5eead4','fuchsia-400':'#e879f9','amber-400':'#fbbf24','lime-300':'#bef264','pink-400':'#f472b6','rose-300':'#fda4af','orange-300':'#fdba74','indigo-400':'#6366f1','violet-300':'#c4b5fd','sky-400':'#38bdf8','emerald-300':'#6ee7b7','purple-400':'#a855f7','yellow-200':'#fef08a','stone-300':'#d6d3d1','amber-300':'#fcd34d','yellow-400':'#facc15'};
+function colorTokenToCss(t:string){ return COLOR_MAP[t]||'#22d3ee'; }
 
-type WizardStep = 'genre' | 'bpmTime' | 'build';
+// ------------- types -------------
+export type ClassicWizardStep='genre'|'bpmTime'|'build';
+export type SeqStep='seq.genrePrimary'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.drum.summary'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
+interface SequentialBuildState{ mainGenre?:GenreId; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
+interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
 
-// Alias / fallback mapping: leaf subgenres that don't yet have a dedicated pack → base genre
-// (Prevents undefined pack lookup causing stuck loading overlay.)
-// NOTE: 기존에는 boomBap / trap / lofiBeats 가 hiphop fallback 이었으나
-// 이제 해당 장르 팩이 존재하므로 alias 제거. 향후 미구현 서브장르만 여기에 추가.
-const GENRE_ALIASES: Record<string, GenreId> = {
-  // example: 'phonk': 'hiphop'
-};
-
-const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;range:[number,number]}> = {
-  // Typical genre tempo windows (researched average ranges)
-  techno:{default:130,low:124,high:134,range:[122,136]},              // 124–134
-  techhouse:{default:125,low:122,high:128,range:[120,129]},          // 122–128
-  house:{default:124,low:120,high:126,range:[118,128]},              // 120–126
-  trance:{default:138,low:134,high:140,range:[132,142]},             // 134–140
-  dnb:{default:174,low:170,high:176,range:[165,180]},                // 170–176
-  dubstep:{default:140,low:138,high:142,range:[136,145]},            // 138–142 (half-time feel)
-  hiphop:{default:92,low:80,high:100,range:[75,105]},                // 80–100 (boom bap ~88–94)
-  boomBap:{default:90,low:84,high:94,range:[82,96]},                 // classic boom bap 84–94
-  trap:{default:142,low:134,high:148,range:[130,150]},               // often double-time notation (71 bpm *2)
-  lofiBeats:{default:82,low:70,high:88,range:[65,90]},               // chillhop 70–90
-  ambient:{default:70,low:55,high:80,range:[50,85]},                 // very flexible
-  orchestral:{default:120,low:90,high:130,range:[70,140]},           // cinematic varies widely
-  cinematic:{default:110,low:90,high:130,range:[80,140]},            // trailer build variety
-  pop:{default:118,low:100,high:124,range:[96,126]},                 // mainstream pop 100–124
+// placeholders for alias expansion (future)
+const GENRE_ALIASES: Record<string,GenreId>={};
+// BPM presets per genre (range used in tempo step)
+const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;range:[number,number]}>={
+  techno:{default:130,low:124,high:134,range:[122,136]},
+  techhouse:{default:125,low:122,high:128,range:[120,129]},
+  house:{default:124,low:120,high:126,range:[118,128]},
+  trance:{default:138,low:134,high:140,range:[132,142]},
+  dnb:{default:174,low:170,high:176,range:[165,180]},
+  dubstep:{default:140,low:138,high:142,range:[136,145]},
+  hiphop:{default:92,low:80,high:100,range:[75,105]},
+  boomBap:{default:90,low:84,high:94,range:[82,96]},
+  trap:{default:142,low:134,high:148,range:[130,150]},
+  lofiBeats:{default:82,low:70,high:88,range:[65,90]},
+  ambient:{default:70,low:55,high:80,range:[50,85]},
+  orchestral:{default:120,low:90,high:130,range:[70,140]},
+  cinematic:{default:110,low:90,high:130,range:[80,140]},
+  pop:{default:118,low:100,high:124,range:[96,126]},
 };
 
-interface WizardState {
-  step: WizardStep;
-  genre?: GenreId;            // primary (first when multi)
-  genres?: GenreId[];         // full selection list
-  bpm?: number;
-  meter?: string; // '4/4'
-  swing?: number; // percent
-  schema?: MergedSchema;
-}
+export default function MultiGenrePromptWizard(){
+  const [state,setState]=useState<WizardState>({ mode:'classic', step:'genre', seq:{ subGenres:[], drums:{ extras:[] }, fxTags:[], mixTags:[] } });
+  const [loading,setLoading]=useState(false);
 
-export default function MultiGenrePromptWizard() {
-  const [state, setState] = useState<WizardState>({ step:'genre' });
-  const [loading, setLoading] = useState(false);
-
-  function selectGenre(g: GenreId){
-    setState(s=> ({...s, genre:g, genres:[g], step:'bpmTime'}));
+  function selectGenre(g:GenreId){
+    if(state.mode==='classic') setState(s=>({...s,genre:g,genres:[g],step:'bpmTime'}));
+    else setState(s=>({...s,seq:{...s.seq,mainGenre:g,subGenres:[]},step:'seq.genreSubs'}));
   }
-  // hybrid path from portal
-  useEffect(()=> {
-    const arr: string[]|undefined = (window as any).__pickedGenres;
-    if (arr && arr.length>=1 && state.step==='genre') {
-      // Canonicalize any unknown subgenre IDs via alias mapping.
-      const canonical = arr.map(id=> {
-        const direct = GENRE_PACKS.find(p=> p.id===id);
-        if (direct) return id as GenreId;
-        const alias = GENRE_ALIASES[id];
-        return (alias || id) as GenreId; // id passes through (may remain unknown but handled later)
-      });
-      const first = canonical[0] as GenreId;
-      setState(s=> ({...s, genre:first, genres:canonical as GenreId[], step:'bpmTime'}));
-    }
-  },[]);
 
-  // keep hash synced when genres array is defined
-  useEffect(()=> {
-    if (state.genres && state.genres.length) {
-      try {
-        const enc = state.genres.join('+');
-        const existing = window.location.hash;
-        const other = existing.split('&').filter(x=> !x.startsWith('#g=') && !x.startsWith('g=')).join('&');
-        const newHash = `#g=${enc}` + (other? '&'+other.replace('#',''):'');
-        if (existing !== newHash) window.location.replace(newHash);
-  } catch {/* no-op */}
-    }
-  }, [state.genres]);
-  function confirmBpm(values:{bpm:number; meter:string; swing?:number}) {
-    if(!state.genre) return;
-    setLoading(true);
-    setTimeout(()=>{ // mock async
-      try {
-        let schema: MergedSchema;
-        if (state.genres && state.genres.length>1) {
-          const packs = state.genres
-            .map(id=> GENRE_PACKS.find(p=> p.id===id) || GENRE_PACKS.find(p=> p.id===GENRE_ALIASES[id]))
-            .filter(Boolean) as any[];
-          // If after alias resolution we have no packs, fallback to universal only
-          if (packs.length===0) {
-            schema = { groups:[...universalPack.groups], options:[...universalPack.options], subopts:{...universalPack.subopts}, order: universalPack.groups.map(g=> g.id) };
-          } else if (packs.length===1) {
-            schema = mergePacks(universalPack, packs[0]);
-          } else {
-            schema = mergeMultiple(universalPack, packs);
-          }
-        } else {
-          const genreId = state.genre as string; // already guarded above
-          const direct = GENRE_PACKS.find(p=> p.id===genreId);
-          const aliasKey = !direct ? GENRE_ALIASES[genreId] : undefined;
-          const aliasPack = aliasKey ? GENRE_PACKS.find(p=> p.id===aliasKey) : undefined;
-          if (direct || aliasPack) {
-            schema = mergePacks(universalPack, (direct || aliasPack)!);
-          } else {
-            // Fallback: universal-only placeholder schema for unknown genre
-            console.warn('[wizard] Unknown genre id', genreId, 'falling back to universal pack only.');
-            schema = { groups:[...universalPack.groups], options:[...universalPack.options], subopts:{...universalPack.subopts}, order: universalPack.groups.map(g=> g.id) };
-          }
-        }
-        setState(s=> ({...s, ...values, schema, step:'build'}));
-      } catch (err) {
-        console.error('[wizard] Failed to build schema', err);
-        alert('Failed to build schema for this genre. Using base template.');
-        const schema: MergedSchema = { groups:[...universalPack.groups], options:[...universalPack.options], subopts:{...universalPack.subopts}, order: universalPack.groups.map(g=> g.id) };
-        setState(s=> ({...s, ...values, schema, step:'build'}));
-      } finally {
-        setLoading(false);
-      }
-    }, 60);
-  }
-  function backTo(step: WizardStep){ setState(s=> ({...s, step})); }
+  // URL hash genre restore (classic mode only)
+  useEffect(()=>{ if(state.mode!=='classic'||state.step!=='genre') return; const arr:string[]|undefined=(window as any).__pickedGenres; if(!arr||!arr.length) return; const canonical=arr.map(id=>{const d=GENRE_PACKS.find(p=>p.id===id); if(d) return id as GenreId; const alias=GENRE_ALIASES[id]; return (alias||id) as GenreId;}); setState(s=>({...s,genre:canonical[0],genres:canonical as GenreId[],step:'bpmTime'})); },[state.mode,state.step]);
+  useEffect(()=>{ if(state.mode==='classic'&&state.genres?.length){ try{ const enc=state.genres.join('+'); const existing=window.location.hash; const other=existing.split('&').filter(x=>!x.startsWith('#g=')&&!x.startsWith('g=')).join('&'); const newHash=`#g=${enc}`+(other?'&'+other.replace('#',''):''); if(existing!==newHash) window.location.replace(newHash);}catch{/*ignore*/} } },[state.mode,state.genres]);
 
-  const primaryId = state.genres && state.genres.length>0 ? state.genres[0] : state.genre;
-  const secondId = state.genres && state.genres.length===2 ? state.genres[1] : undefined;
-  const activeTheme = getGenreTheme(primaryId || state.genre);
-  const secondTheme = secondId ? getGenreTheme(secondId) : null;
-  // Hybrid gradient: blend first half from primary, second half from second
-  const hybridGradient = secondTheme
-    ? `from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]`
-    : activeTheme.gradient;
-  const accentBtn = 'text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30';
-  const accentPrimary = `bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`;
-  const accentGhost = `border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
+  function buildSchema(list:GenreId[]):MergedSchema{ if(list.length>1){ const packs=list.map(id=> GENRE_PACKS.find(p=>p.id===id)||GENRE_PACKS.find(p=>p.id===GENRE_ALIASES[id!])).filter(Boolean) as any[]; if(!packs.length) return {groups:[...universalPack.groups],options:[...universalPack.options],subopts:{...universalPack.subopts},order:universalPack.groups.map(g=>g.id)}; if(packs.length===1) return mergePacks(universalPack,packs[0]); return mergeMultiple(universalPack,packs);} const g0=list[0]; const direct=GENRE_PACKS.find(p=>p.id===g0); const aliasKey=!direct? GENRE_ALIASES[g0!]:undefined; const aliasPack=aliasKey? GENRE_PACKS.find(p=>p.id===aliasKey):undefined; if(direct||aliasPack) return mergePacks(universalPack,(direct||aliasPack)!); return {groups:[...universalPack.groups],options:[...universalPack.options],subopts:{...universalPack.subopts},order:universalPack.groups.map(g=>g.id)}; }
+
+  function confirmBpm(v:{bpm:number;meter:string;swing?:number}){ const list= state.mode==='classic'? (state.genres||(state.genre?[state.genre]:[])) : [state.seq.mainGenre!, ...state.seq.subGenres]; if(!list.length) return; setLoading(true); setTimeout(()=>{ try{ const schema=buildSchema(list as GenreId[]); if(state.mode==='classic') setState(s=>({...s,...v,schema,step:'build'})); else setState(s=>({...s,schema,seq:{...s.seq,bpm:v.bpm,meter:v.meter,swing:v.swing},step:'seq.drum.kick'})); } catch(err){ console.error('schema build failed',err);} finally { setLoading(false);} },40); }
+  function backTo(step:ClassicWizardStep|SeqStep){ setState(s=>({...s,step})); }
+
+  // theming / style tokens
+  const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
+  const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.drum.summary','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
+  const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
+
   return (
-    <div
-      className={`w-full min-h-screen app-dark-root text-slate-100 px-6 py-8 ${activeTheme.glow}`}
-      style={secondTheme ? {
-        ['--g1-from' as any]: extractFirstColor(activeTheme.gradient),
-        ['--g1-via' as any]: extractMiddleColor(activeTheme.gradient),
-        ['--g2-to' as any]: extractLastColor(secondTheme.gradient)
-      }: undefined}
-    >
+    <div className={`w-full min-h-screen app-dark-root text-slate-100 px-6 py-8 ${activeTheme.glow}`} style={secondTheme? {['--g1-from' as any]:extractFirstColor(activeTheme.gradient),['--g1-via' as any]:extractMiddleColor(activeTheme.gradient),['--g2-to' as any]:extractLastColor(secondTheme.gradient)}:undefined}>
       <header className="mb-8 flex items-center justify-between">
-        <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT COMPOSER{secondTheme? ' • HYBRID':''}</h1>
+        <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT COMPOSER{secondTheme?' • HYBRID':''}</h1>
         <div className="flex gap-2 items-center">
-          {state.step!=='genre' && (
-            <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>
-          )}
+          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.genrePrimary'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400">{state.mode==='classic'? 'Sequential Mode':'Classic Mode'}</button>
+          {state.mode==='classic' && state.step!=='genre' && <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>}
+          {isSeq && progressIndex>0 && <button onClick={()=> backTo(seqSteps[Math.max(0,progressIndex-1)])} className="px-2 py-1 text-xs rounded border border-slate-600 hover:border-cyan-400">Prev</button>}
         </div>
       </header>
-      {state.step==='genre' && <GenreStep onSelect={selectGenre} />}
-  {state.step==='bpmTime' && state.genre && <BpmTimeStep
-    genre={state.genre}
-    presets={GENRE_BPM_PRESETS[state.genre] || GENRE_BPM_PRESETS[GENRE_ALIASES[state.genre]] || GENRE_BPM_PRESETS['techno']}
-    onConfirm={confirmBpm}
-    onBack={()=> backTo('genre')}
-    accentBtn={accentBtn}
-    accentGhost={accentGhost}
-    accentPrimary={accentPrimary}
-  />}
-      {state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
-      {/* Live coding side panel mount point */}
-      <LiveCodingDock />
+      {isSeq && (
+        <div className="mb-6 flex flex-wrap gap-1 items-center text-[10px]">
+          {seqSteps.map(st=>{const on=st===state.step; return <button key={st} onClick={()=> backTo(st)} className={`px-2 py-1 rounded border ${on? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-700 hover:border-cyan-400 text-slate-400'}`}>{st.replace('seq.','').replace(/\./g,'›')}</button>;})}
+        </div>
+      )}
+      {/* Classic Mode */}
+      {state.mode==='classic' && state.step==='genre' && <GenreStep onSelect={selectGenre} />}
+      {state.mode==='classic' && state.step==='bpmTime' && state.genre && (
+        <BpmTimeStep genre={state.genre} presets={GENRE_BPM_PRESETS[state.genre]||GENRE_BPM_PRESETS[GENRE_ALIASES[state.genre]]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('genre')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
+      {state.mode==='classic' && state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
+      {/* Sequential Mode */}
+      {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep onSelect={selectGenre} />}
+      {isSeq && state.step==='seq.genreSubs' && <GenreSubsStep state={state} onDone={(subs)=> setState(s=>({...s,seq:{...s.seq,subGenres:subs},step:'seq.tempo'}))} />}
+      {isSeq && state.step==='seq.tempo' && state.seq.mainGenre && (<BpmTimeStep genre={state.seq.mainGenre} presets={GENRE_BPM_PRESETS[state.seq.mainGenre]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('seq.genreSubs')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
+      {isSeq && state.step==='seq.drum.kick' && <DrumPickStep label="Kick" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,kick:val}},step:'seq.drum.hat'}))} onBack={()=> backTo('seq.tempo')} />}
+      {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
+      {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
+      {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.drum.summary'}))} onBack={()=> backTo('seq.drum.snare')} />}
+      {isSeq && state.step==='seq.drum.summary' && <DrumSummaryStep seq={state.seq} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.drum.extras')} />}
+      {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.drum.summary')} />}
+      {isSeq && state.step==='seq.chords' && <SimplePickStep label="Chords/Pad" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,chords:v},step:'seq.lead'}))} onBack={()=> backTo('seq.bass')} />}
+      {isSeq && state.step==='seq.lead' && <SimplePickStep label="Lead" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,lead:v},step:'seq.fx'}))} onBack={()=> backTo('seq.chords')} />}
+      {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.lead')} />}
+      {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
+      {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, fxTags:[], mixTags:[] }, step:'seq.genrePrimary'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
+      <LiveCodingDock />
     </div>
   );
 }
 
-function GenreStep({ onSelect }:{ onSelect:(g:GenreId)=>void }) {
-  const packs = GENRE_PACKS;
-  const placeholders: {id:GenreId; label:string; description:string}[] = packs.map(p=> ({id:p.id,label:p.label,description:p.description||''}));
-  return (
-    <div className="max-w-4xl mx-auto">
-      <h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select a Genre</h2>
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-        {placeholders.map(p=> (
-          <button key={p.id} onClick={()=> onSelect(p.id)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition">
-            <div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div>
-            <p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description || 'Genre description...'}</p>
-          </button>
-        ))}
-        {['house','trance','dnb','hiphop','ambient'].filter(id=> !placeholders.find(p=>p.id===id)).map(id=> (
-          <div key={id} className="border border-dashed border-slate-700 rounded-xl p-4 text-left opacity-60">
-            <div className="text-base font-medium tracking-wide">{id.toUpperCase()}</div>
-            <p className="mt-2 text-[11px] text-slate-500">Coming soon…</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// ---------------- Sub Components ----------------
+function GenreStep({ onSelect }:{ onSelect:(g:GenreId)=>void }){ const packs=GENRE_PACKS; const placeholders=packs.map(p=>({id:p.id,label:p.label,description:p.description||''})); return (<div className="max-w-4xl mx-auto"><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select a Genre</h2><div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{placeholders.map(p=> (<button key={p.id} onClick={()=> onSelect(p.id)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition"><div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div><p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description||'Genre description...'}</p></button>))}</div></div>); }
+function BpmTimeStep({ genre, presets, onConfirm, onBack, accentBtn, accentGhost, accentPrimary }:{ genre:GenreId; presets:{default:number;low:number;high:number;range:[number,number]}; onConfirm:(v:{bpm:number;meter:string;swing?:number})=>void; onBack:()=>void; accentBtn:string; accentGhost:string; accentPrimary:string }){ const [bpm,setBpm]=useState(presets.default); const [meter,setMeter]=useState('4/4'); const [swing,setSwing]=useState<number|undefined>(); const swings=[0,54,57]; return (<div className="max-w-xl mx-auto space-y-8"><div><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-2">Tempo / Meter</h2><p className="text-xs text-slate-400 mb-4">{genre.toUpperCase()} recommended {presets.range[0]}–{presets.range[1]} BPM</p><div className="flex flex-wrap gap-2 mb-3">{[presets.low,presets.default,presets.high].map(v=> <button key={v} onClick={()=> setBpm(v)} className={`px-3 py-1 rounded border text-xs ${bpm===v?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{v} BPM</button>)}</div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">Custom</label><input type="number" value={bpm} onChange={e=> setBpm(Number(e.target.value)||bpm)} className="bg-slate-800/60 border border-slate-600 rounded px-3 py-1 text-sm w-28 focus:outline-none focus:border-cyan-400" /></div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">Meter</label><select value={meter} onChange={e=> setMeter(e.target.value)} className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400">{['4/4','3/4','6/8','5/4','7/8','9/8'].map(m=> <option key={m} value={m}>{m}</option>)}</select></div><div className="mb-4"><div className="text-xs text-slate-400 mb-1">Swing %</div><div className="flex gap-2 flex-wrap">{swings.map(s=> <button key={s} onClick={()=> setSwing(s===0?undefined:s)} className={`px-2 py-1 rounded border text-[11px] ${swing===s?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{s===0?'None':s+'%'}</button>)}</div></div><div className="flex justify-between mt-8"><button onClick={onBack} className={`${accentBtn} ${accentGhost}`}>Back</button><button onClick={()=> onConfirm({bpm,meter,swing})} className={`${accentBtn} ${accentPrimary}`}>Continue</button></div></div></div>); }
+function GenrePrimaryStep({ onSelect }:{ onSelect:(g:GenreId)=>void }){ return <GenreStep onSelect={onSelect}/>; }
+function GenreSubsStep({ state, onDone }:{ state:WizardState; onDone:(subs:GenreId[])=>void }){ const packs=GENRE_PACKS.filter(p=> p.id!==state.seq.mainGenre); const [local,setLocal]=useState<GenreId[]>(state.seq.subGenres); return (<div className="max-w-3xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Add Sub Genres (Optional)</h2><div className="flex flex-wrap gap-2">{packs.map(p=> { const on=local.includes(p.id); return <button key={p.id} onClick={()=> setLocal(l=> on? l.filter(x=> x!==p.id):[...l,p.id])} className={`px-3 py-1 rounded border text-xs ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{p.label}</button>; })}</div><div className="flex justify-end gap-2 text-xs"><button onClick={()=> onDone(local)} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Continue</button></div></div>); }
+function DrumPickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const opts=['punchy','deep','analog','distorted','tight','airy']; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Select {label}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Back</button></div></div>); }
+function DrumExtrasStep({ extras, onChange, onNext, onBack }:{ extras:string[]; onChange:(a:string[])=>void; onNext:()=>void; onBack:()=>void }){ const opts=['clap','shaker','rim','tom','ride']; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Extra Percussion</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=extras.includes(o); return <button key={o} onClick={()=> onChange(on? extras.filter(x=> x!==o):[...extras,o])} className={`px-3 py-1 rounded border text-xs ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Back</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">Continue</button></div></div>); }
+function DrumSummaryStep({ seq, onNext, onBack }:{ seq:SequentialBuildState; onNext:()=>void; onBack:()=>void }){ const line=`DRUM FOUNDATION: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join(' + '):''}`; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Drum Summary</h2><pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap">{line}</pre><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Back</button><button onClick={()=>{navigator.clipboard.writeText(line); onNext();}} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy & Continue</button></div></div>); }
+function SimplePickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const opts=['warm','analog','bright','dark','wide','crisp']; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Select {label}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Back</button></div></div>); }
+function TagPickStep({ label, values, onChange, onNext, onBack }:{ label:string; values:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void }){ const opts= label==='FX'? ['shimmer','tape delay','grit','modulated','lofi','wide']: ['tight low-end','airy highs','glue','wide stereo','punchy mid']; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{label} Tags</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=values.includes(o); return <button key={o} onClick={()=> onChange(on? values.filter(x=> x!==o):[...values,o])} className={`px-3 py-1 rounded border text-xs ${on? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Back</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">Continue</button></div></div>); }
+function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){ const lines=[`GENRE: ${seq.mainGenre}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`, seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'', `DRUMS: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join('+'):''}`, seq.bass?`BASS: ${seq.bass}`:'', seq.chords?`CHORDS: ${seq.chords}`:'', seq.lead?`LEAD: ${seq.lead}`:'', seq.fxTags.length? 'FX: '+seq.fxTags.join(', '):'', seq.mixTags.length? 'MIX: '+seq.mixTags.join(', '):''].filter(Boolean).join('\n'); return (<div className="max-w-2xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Final Summary</h2><pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre><div className="flex justify-between text-xs"><button onClick={onRestart} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Restart</button><button onClick={()=> navigator.clipboard.writeText(lines)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy</button></div></div>); }
+function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState; onBack:()=>void; accentBtn:string; accentGhost:string }){ const [melodySummary,setMelodySummary]=useState<any|null>(null); const [includeMelody,setIncludeMelody]=useState(true); const [mode,setMode]=useState<'schema'|'instrument'>('schema'); const [pickedProg,setPickedProg]=useState<string|undefined>(); const [compact,setCompact]=useState(false); const recProgs=useMemo(()=> state.genres? recommendProgressions(state.genres,5): state.genre? recommendProgressions([state.genre],5):[], [state.genres,state.genre]); function buildMelodySuffix(){ if(!includeMelody||!melodySummary) return ''; const parts:string[]=[]; if(melodySummary.medianNote) parts.push(`melody centered on ${melodySummary.medianNote}`); if(melodySummary.keyGuess) parts.push(`${melodySummary.keyGuess}`); if(melodySummary.stability!=null) parts.push(`stability ${(melodySummary.stability*100).toFixed(0)}%`); if(melodySummary.scaleCandidates?.length) parts.push(`scales ${melodySummary.scaleCandidates.map((s:any)=> s.scale.split(' ')[0]).slice(0,2).join('/')}`); return parts.join(' | ');} const suffix=buildMelodySuffix(); const genreDescriptions=(state.genres||(state.genre?[state.genre]:[])).map(id=>{const pack=GENRE_PACKS.find(p=> p.id===id); return pack? `${pack.label}: ${pack.description||''}`.trim():null;}).filter(Boolean).join(' | '); const progressionSuffix=useMemo(()=>{ if(!pickedProg) return ''; const f=recProgs.find(p=> p.id===pickedProg); return f? `Progression: ${f.roman}`:''; },[pickedProg,recProgs]); return (<div className="space-y-6"><div className="flex items-center justify-between"><div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter&&state.meter!=='4/4'?' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div><button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button></div><div className="flex gap-3 text-[11px]"><button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button><button onClick={()=> setMode('instrument')} className={`px-3 py-1 rounded border ${mode==='instrument'?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Instrument Mode</button>{mode==='schema' && <button onClick={()=> setCompact(c=>!c)} className={`px-3 py-1 rounded border ${compact?'border-emerald-400 text-emerald-200 bg-emerald-600/10':'border-slate-600 text-slate-400 hover:border-emerald-400 hover:text-emerald-200'}`}>{compact? 'Compact ON':'Compact OFF'}</button>}</div><div className="flex items-center gap-3 text-[11px] text-slate-400"><label className="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" checked={includeMelody} onChange={e=> setIncludeMelody(e.target.checked)} /><span>Include Melody Summary</span></label>{suffix && <span className="text-slate-500 truncate max-w-[420px]">Preview: {suffix}</span>}</div><div className="grid lg:grid-cols-3 gap-6"><div className="lg:col-span-2 space-y-6">{mode==='schema' && state.schema && <SchemaPromptBuilder schema={state.schema} bpm={state.bpm} meter={state.meter} swing={state.swing} extraSuffix={[genreDescriptions,progressionSuffix,suffix].filter(Boolean).join(', ')} compact={compact} />}{mode==='instrument' && <InstrumentPromptBuilder />}</div><div className="lg:col-span-1 space-y-6"><MelodyRecorder onResult={(r)=> setMelodySummary(r)} /><div className="rounded-xl panel-dim p-3 space-y-2"><h4 className="text-[11px] uppercase tracking-wider text-slate-300">Genre Progressions</h4>{recProgs.length===0 && <div className="text-[11px] text-slate-500">No patterns</div>}<div className="flex flex-wrap gap-2">{recProgs.map((p:any)=>{const on=p.id===pickedProg; return <button key={p.id} onClick={()=> setPickedProg(on? undefined:p.id)} className={`px-2 py-1 rounded border text-[10px] transition ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400 hover:text-fuchsia-200'}`}>{p.roman}</button>;})}</div>{pickedProg && <div className="text-[10px] text-slate-500">Selected: {recProgs.find((p:any)=> p.id===pickedProg)?.label}</div>}</div></div></div></div>); }
+function LiveCodingDock(){ const [open,setOpen]=useState(false); const [hover,setHover]=useState(false); useEffect(()=>{ function onReq(){ setOpen(true);} window.addEventListener('livecode.requestOpen',onReq as any); function onKey(e:KeyboardEvent){ if((e.metaKey||e.ctrlKey)&&(e.key==='l'||e.key==='L')){ e.preventDefault(); setOpen(o=>!o);} } window.addEventListener('keydown',onKey); return ()=>{ window.removeEventListener('livecode.requestOpen',onReq as any); window.removeEventListener('keydown',onKey); };},[]); return (<><div className={`fixed bottom-6 right-0 z-40 group ${open?'translate-x-0':'translate-x-[calc(100%-52px)]'} transition-transform duration-300`} onMouseEnter={()=> setHover(true)} onMouseLeave={()=> setHover(false)}><div className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-l-xl shadow-lg border border-r-0 backdrop-blur-md cursor-pointer select-none ${open?'bg-cyan-600/30 border-cyan-500/40':'bg-slate-800/60 border-slate-600/40 hover:bg-slate-700/70'}`} onClick={()=> setOpen(o=>!o)}><span className="text-[11px] tracking-wide text-slate-200">{open?'LIVE CODING':'LIVE'}</span><button onClick={(e)=>{ e.stopPropagation(); setOpen(false);}} className={`text-slate-400 hover:text-cyan-200 text-xs px-1 rounded transition-opacity ${open||hover?'opacity-100':'opacity-0'} focus:opacity-100`} aria-label="Close live coding console">×</button></div></div><div className={`fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg transition-transform duration-300 ${open?'translate-x-0':'translate-x-full'}`}>{open && <LiveCodingConsole onClose={()=> setOpen(false)} />}</div></>); }
 
-function BpmTimeStep({ genre, presets, onConfirm, onBack, accentBtn, accentGhost, accentPrimary }:{ genre:GenreId; presets:{default:number;low:number;high:number;range:[number,number]}; onConfirm:(v:{bpm:number; meter:string; swing?:number})=>void; onBack:()=>void; accentBtn:string; accentGhost:string; accentPrimary:string }) {
-  const [bpm,setBpm] = useState<number>(presets.default);
-  const [meter,setMeter] = useState('4/4');
-  const [swing,setSwing] = useState<number|undefined>(undefined);
-  const swingChoices = [0,54,57];
-  return (
-    <div className="max-w-xl mx-auto space-y-8">
-      <div>
-        <h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-2">Tempo / Meter</h2>
-        <p className="text-xs text-slate-400 mb-4">{genre.toUpperCase()} recommended range {presets.range[0]}–{presets.range[1]} BPM</p>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {[presets.low,presets.default,presets.high].map(v=> (
-            <button key={v} onClick={()=> setBpm(v)} className={`px-3 py-1 rounded border text-xs ${bpm===v?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{v} BPM</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 mb-4">
-          <label className="text-xs text-slate-400 w-20">Custom</label>
-          <input type="number" value={bpm} onChange={e=> setBpm(Number(e.target.value)||bpm)} className="bg-slate-800/60 border border-slate-600 rounded px-3 py-1 text-sm w-28 focus:outline-none focus:border-cyan-400" />
-        </div>
-        <div className="flex items-center gap-3 mb-4">
-          <label className="text-xs text-slate-400 w-20">Meter</label>
-          <select value={meter} onChange={e=> setMeter(e.target.value)} className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400">
-            {['4/4','3/4','6/8','5/4','7/8','9/8'].map(m=> <option key={m} value={m}>{m}</option>)}
-          </select>
-        </div>
-        <div className="mb-4">
-          <div className="text-xs text-slate-400 mb-1">Swing % (optional)</div>
-            <div className="flex gap-2 flex-wrap">
-              {swingChoices.map(s=> (
-                <button key={s} onClick={()=> setSwing(s===0?undefined:s)} className={`px-2 py-1 rounded border text-[11px] ${swing===s? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{s===0? 'None': s+'%'}</button>
-              ))}
-            </div>
-        </div>
-        <div className="flex justify-between mt-8">
-          <button onClick={onBack} className={`${accentBtn} ${accentGhost}`}>Back</button>
-          <button onClick={()=> onConfirm({bpm,meter,swing})} className={`${accentBtn} ${accentPrimary}`}>Continue</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState; onBack:()=>void; accentBtn:string; accentGhost:string }) {
-  const [melodySummary, setMelodySummary] = useState<any|null>(null);
-  const [includeMelody, setIncludeMelody] = useState(true);
-  const [mode, setMode] = useState<'schema'|'instrument'>('schema');
-  const [pickedProg, setPickedProg] = useState<string|undefined>(undefined);
-  const [compact, setCompact] = useState(false);
-  const recProgs = useMemo(()=> state.genres? recommendProgressions(state.genres,5): state.genre? recommendProgressions([state.genre],5) : [], [state.genres,state.genre]);
-  function buildMelodySuffix(){
-    if (!includeMelody || !melodySummary) return '';
-    const parts: string[] = [];
-    if (melodySummary.medianNote) parts.push(`melody centered on ${melodySummary.medianNote}`);
-    if (melodySummary.keyGuess) parts.push(`${melodySummary.keyGuess}`);
-    if (melodySummary.stability!=null) parts.push(`stability ${(melodySummary.stability*100).toFixed(0)}%`);
-    if (melodySummary.scaleCandidates?.length) parts.push(`scales ${melodySummary.scaleCandidates.map((s:any)=> s.scale.split(' ')[0]).slice(0,2).join('/')}`);
-    return parts.join(' | ');
-  }
-  const suffix = buildMelodySuffix();
-  // Compose genre description (supports hybrid)
-  const genreDescriptions = (state.genres|| (state.genre? [state.genre]: []))
-    .map(id=> {
-      const pack = GENRE_PACKS.find(p=> p.id===id);
-      return pack? `${pack.label}: ${pack.description || ''}`.trim(): null;
-    })
-    .filter(Boolean)
-    .join(' | ');
-  const progressionSuffix = useMemo(()=> {
-    if (!pickedProg) return '';
-    const found = recProgs.find(p=> p.id===pickedProg);
-    return found? `Progression: ${found.roman}`: '';
-  },[pickedProg, recProgs]);
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter && state.meter!=='4/4' ? ' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div>
-        <button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button>
-      </div>
-      <div className="flex gap-3 text-[11px]">
-        <button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button>
-        <button onClick={()=> setMode('instrument')} className={`px-3 py-1 rounded border ${mode==='instrument'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Instrument Mode</button>
-        {mode==='schema' && (
-          <button onClick={()=> setCompact(c=> !c)} className={`px-3 py-1 rounded border ${compact? 'border-emerald-400 text-emerald-200 bg-emerald-600/10':'border-slate-600 text-slate-400 hover:border-emerald-400 hover:text-emerald-200'}`}>{compact? 'Compact ON':'Compact OFF'}</button>
-        )}
-      </div>
-      <div className="flex items-center gap-3 text-[11px] text-slate-400">
-        <label className="flex items-center gap-1 cursor-pointer select-none">
-          <input type="checkbox" checked={includeMelody} onChange={e=> setIncludeMelody(e.target.checked)} />
-          <span>Include Melody Summary</span>
-        </label>
-        {suffix && <span className="text-slate-500 truncate max-w-[420px]">Preview: {suffix}</span>}
-      </div>
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {mode==='schema' && state.schema && (
-            <SchemaPromptBuilder
-              schema={state.schema}
-              bpm={state.bpm}
-              meter={state.meter}
-              swing={state.swing}
-              extraSuffix={[genreDescriptions, progressionSuffix, suffix].filter(Boolean).join(', ')}
-              compact={compact}
-            />
-          )}
-          {mode==='instrument' && (
-            <InstrumentPromptBuilder />
-          )}
-        </div>
-        <div className="lg:col-span-1 space-y-6">
-          <MelodyRecorder onResult={(r)=> setMelodySummary(r)} />
-          {/* Progression Recommendations */}
-          <div className="rounded-xl panel-dim p-3 space-y-2">
-            <h4 className="text-[11px] uppercase tracking-wider text-slate-300">Genre Progressions</h4>
-            {recProgs.length===0 && <div className="text-[11px] text-slate-500">No patterns</div>}
-            <div className="flex flex-wrap gap-2">
-              {recProgs.map((p:any)=> {
-                const on = p.id===pickedProg;
-                return <button key={p.id} onClick={()=> setPickedProg(on? undefined : p.id)} className={`px-2 py-1 rounded border text-[10px] transition ${on? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400 hover:text-fuchsia-200'}`}>{p.roman}</button>;
-              })}
-            </div>
-            {pickedProg && <div className="text-[10px] text-slate-500">Selected: {recProgs.find((p:any)=> p.id===pickedProg)?.label}</div>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Dock container that anchors console as a slide-over panel
-function LiveCodingDock(){
-  const [open,setOpen] = useState(false);
-  const [hover, setHover] = useState(false);
-  useEffect(()=> {
-    function onReq(){ setOpen(true); }
-    window.addEventListener('livecode.requestOpen', onReq as any);
-    function onKey(e:KeyboardEvent){
-      if ((e.metaKey || e.ctrlKey) && (e.key==='l' || e.key==='L')) {
-        e.preventDefault();
-        setOpen(o=> !o);
-      }
-    }
-    window.addEventListener('keydown', onKey);
-    return ()=> { window.removeEventListener('livecode.requestOpen', onReq as any); window.removeEventListener('keydown', onKey); };
-  },[]);
-  // Tab visible width when closed
-  return (
-    <>
-      {/* Slide tab trigger */}
-      <div
-        className={`fixed bottom-6 right-0 z-40 group ${open? 'translate-x-0':'translate-x-[calc(100%-52px)]'} transition-transform duration-300`}
-        onMouseEnter={()=> setHover(true)}
-        onMouseLeave={()=> setHover(false)}
-      >
-        <div className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-l-xl shadow-lg border border-r-0 backdrop-blur-md cursor-pointer select-none
-          ${open? 'bg-cyan-600/30 border-cyan-500/40':'bg-slate-800/60 border-slate-600/40 hover:bg-slate-700/70'}
-        `} onClick={()=> setOpen(o=> !o)}>
-          <span className="text-[11px] tracking-wide text-slate-200">{open? 'LIVE CODING':'LIVE'}</span>
-          {/* Close button appears only when open or hovered inside expanded state */}
-          <button
-            onClick={(e)=> { e.stopPropagation(); setOpen(false);} }
-            className={`text-slate-400 hover:text-cyan-200 text-xs px-1 rounded transition-opacity ${open || hover? 'opacity-100':'opacity-0'} focus:opacity-100`}
-            aria-label="Close live coding console"
-          >×</button>
-        </div>
-      </div>
-      {/* Panel */}
-      <div className={`fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg transition-transform duration-300 ${open? 'translate-x-0':'translate-x-full'}`}>
-        {open && <LiveCodingConsole onClose={()=> setOpen(false)} />}
-      </div>
-    </>
-  );
-}
-
-// (Removed BubbleButton: header Live Coding trigger deprecated in favor of unified slide tab)
+// (legacy duplicated component block removed during rewrite)
