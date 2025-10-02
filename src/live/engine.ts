@@ -87,7 +87,8 @@ class LiveEngine {
     // Reverb (procedural impulse)
     this.reverbSend = ctx.createGain(); this.reverbSend.gain.value = 0.0;
     this.reverbNode = ctx.createConvolver();
-    this.reverbNode.buffer = this.makeImpulse(ctx, 1.8, 0.4);
+  // improved plate style impulse (quick patch). Fallback to legacy if needed.
+  this.reverbNode.buffer = this.makePlateImpulse(ctx, 1.65);
     // Wiring
     this.delayNode.connect(this.masterGain);
     this.reverbSend.connect(this.reverbNode).connect(this.masterGain);
@@ -111,6 +112,30 @@ class LiveEngine {
       for (let i=0;i<len;i++) {
         data[i] = (Math.random()*2-1)* Math.pow(1 - i/len, decay);
       }
+    }
+    return buf;
+  }
+
+  // Lightweight plate-like impulse: exponential energy falloff + gentle HF damping
+  private makePlateImpulse(ctx: AudioContext, seconds=1.6){
+    const sr = ctx.sampleRate;
+    const len = Math.floor(sr * seconds);
+    const buf = ctx.createBuffer(2, len, sr);
+    for (let ch=0; ch<2; ch++){
+      const data = buf.getChannelData(ch);
+      let lpState = 0; // simple one-pole lowpass for HF damping
+      const lpCoeff = 0.12; // damping factor
+      for (let i=0;i<len;i++){
+        const t = i/len;
+        // colored noise (pink-ish): sum of a few filtered white components
+        const w = (Math.random()*2-1) * 0.6 + (Math.random()*2-1)*0.3 + (Math.random()*2-1)*0.1;
+        lpState += lpCoeff * (w - lpState);
+        const env = Math.exp(-3.2 * t); // faster early decay
+        const hfDamp = Math.pow(1 - t, 0.35);
+        data[i] = (lpState * env * hfDamp);
+      }
+      // Very light tail fade shape to avoid abrupt cut
+      for (let i=0;i<512 && i<len;i++) data[len-1-i] *= i/512;
     }
     return buf;
   }
@@ -264,11 +289,17 @@ class LiveEngine {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    const decay = opts.decay ?? 0.22;
-    const baseFreq = 50;
-    const peak = baseFreq * 2.2;
+    const bodyEQ = ctx.createBiquadFilter(); bodyEQ.type='peaking'; bodyEQ.frequency.value=80; bodyEQ.Q.value=1.2; bodyEQ.gain.value=3.5;
+    const shaper = ctx.createWaveShaper();
+    // soft saturation curve
+    const curve = new Float32Array(256);
+    for (let i=0;i<curve.length;i++){ const x = (i/255)*2-1; curve[i] = Math.tanh(x*2.2); }
+    shaper.curve = curve; shaper.oversample = '2x';
+    const decay = opts.decay ?? 0.24;
+    const baseFreq = 49;
+    const peak = baseFreq * 2.4;
     osc.frequency.setValueAtTime(peak, time);
-    osc.frequency.exponentialRampToValueAtTime(baseFreq, time + decay);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq, time + decay*0.9);
     gain.gain.setValueAtTime((opts.gain ?? 0.9)*vel, time);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
     // transient noise
@@ -278,7 +309,7 @@ class LiveEngine {
     const nGain = ctx.createGain(); nGain.gain.setValueAtTime(0.4*vel, time); nGain.gain.exponentialRampToValueAtTime(0.001, time+0.05);
     const filter = ctx.createBiquadFilter(); filter.type='lowpass'; filter.frequency.setValueAtTime(2500, time);
     nSrc.connect(filter).connect(nGain).connect(this.masterGain!);
-    osc.connect(gain).connect(this.masterGain!);
+    osc.connect(shaper).connect(bodyEQ).connect(gain).connect(this.masterGain!);
     osc.start(time);
     osc.stop(time + decay);
     nSrc.start(time);
@@ -291,33 +322,48 @@ class LiveEngine {
     for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    const hp = ctx.createBiquadFilter();
-    hp.type = 'highpass';
-    hp.frequency.value = 7000;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6500;
+    // mild bandpass to tame harsh band
+    const bp = ctx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=10000; bp.Q.value=0.6;
+    // shelving via peaking filter negative gain (pseudo high-shelf)
+    const shelf = ctx.createBiquadFilter(); shelf.type='peaking'; shelf.frequency.value=12000; shelf.Q.value=0.7; shelf.gain.value = -4.5;
     const gain = ctx.createGain();
     const g = (opts.gain ?? 0.4) * vel;
     gain.gain.setValueAtTime(g, time);
     gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.15);
-    src.connect(hp).connect(gain).connect(this.masterGain!);
+    src.connect(hp).connect(bp).connect(shelf).connect(gain).connect(this.masterGain!);
     src.start(time);
   }
 
   private playBass(time: number, opts: PlayOptions, note: number, vel:number) {
     const ctx = this.ctx!;
-    const osc = ctx.createOscillator();
-    osc.type = 'sawtooth'; // future supersaw
-    const gain = ctx.createGain();
     const decay = opts.decay ?? 0.35;
     const freq = 440 * Math.pow(2, (note - 69) / 12);
-    osc.frequency.setValueAtTime(freq, time);
-    gain.gain.setValueAtTime((opts.gain ?? 0.6)*vel, time);
-    gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.setValueAtTime(800, time);
-    osc.connect(lp).connect(gain).connect(this.masterGain!);
-    osc.start(time);
-    osc.stop(time + decay);
+    const out = ctx.createGain();
+    out.gain.setValueAtTime((opts.gain ?? 0.6)*vel, time);
+    out.gain.exponentialRampToValueAtTime(0.0001, time+decay);
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.setValueAtTime(780, time);
+    // supersaw option
+    if (opts.wave === 'supersaw') {
+      const voices = opts.unison || 6;
+      const detune = (opts.detune ?? 14) / 2; // +/- range
+      for (let i=0;i<voices;i++) {
+        const o = ctx.createOscillator(); o.type='sawtooth';
+        const spread = (i - (voices-1)/2)/((voices-1)/2 || 1); // -1..1
+        const cents = spread * detune;
+        o.frequency.setValueAtTime(freq * Math.pow(2, cents/1200), time);
+        const g = ctx.createGain(); g.gain.value = 1/voices;
+        o.connect(g).connect(lp);
+        o.start(time); o.stop(time+decay+0.05);
+      }
+    } else {
+      const osc = ctx.createOscillator();
+      const wt = (opts.wave === 'saw' ? 'sawtooth' : opts.wave === 'square' ? 'square' : opts.wave === 'triangle' ? 'triangle' : opts.wave === 'sine' ? 'sine' : 'sawtooth');
+      osc.type = wt;
+      osc.frequency.setValueAtTime(freq, time);
+      osc.connect(lp); osc.start(time); osc.stop(time+decay+0.05);
+    }
+    lp.connect(out).connect(this.masterGain!);
   }
 
   private playSnare(time:number, opts:PlayOptions, vel:number){
@@ -337,25 +383,31 @@ class LiveEngine {
 
   private playPad(time:number, opts:PlayOptions, note:number, vel:number){
     const ctx = this.ctx!;
-    const voices = 3;
     const freq = 440 * Math.pow(2,(note-69)/12);
-    const out = ctx.createGain(); out.gain.value=0; out.connect(this.masterGain!);
-    const attack = opts.env?.attack ?? 0.4;
-    const rel = opts.env?.release ?? 1.8;
-    const sus = opts.env?.sustain ?? 0.7;
-    const decay = opts.env?.decay ?? 0.6;
-    for (let i=0;i<voices;i++){
+    const out = ctx.createGain(); out.connect(this.masterGain!);
+    const attack = opts.env?.attack ?? 0.35;
+    const decay = opts.env?.decay ?? 0.7;
+    const sus = opts.env?.sustain ?? 0.65;
+    const rel = opts.env?.release ?? 2.2;
+    if (opts.wave==='supersaw') {
+      const voices = opts.unison || 7;
+      const detune = (opts.detune ?? 18)/2;
+      for (let i=0;i<voices;i++){
+        const o = ctx.createOscillator(); o.type='sawtooth';
+        const spread = (i-(voices-1)/2)/((voices-1)/2 || 1);
+        const cents = spread * detune;
+        o.frequency.setValueAtTime(freq*Math.pow(2,cents/1200), time);
+        const g = ctx.createGain(); g.gain.value = 1/voices;
+        o.connect(g).connect(out); o.start(time); o.stop(time+attack+decay+rel+3);
+      }
+    } else {
       const o = ctx.createOscillator();
-      o.type = 'sawtooth';
-      const g = ctx.createGain(); g.gain.value=1/voices;
-      o.frequency.setValueAtTime(freq * (1 + (i-1)*0.005), time);
-      o.connect(g).connect(out);
-      o.start(time);
-      o.stop(time + attack + decay + rel + 2);
+      const wt = (opts.wave === 'saw' ? 'sawtooth' : opts.wave === 'square' ? 'square' : opts.wave === 'triangle' ? 'triangle' : opts.wave === 'sine' ? 'sine' : 'sawtooth');
+      o.type = wt;
+      o.frequency.setValueAtTime(freq, time);
+      o.connect(out); o.start(time); o.stop(time+attack+decay+rel+3);
     }
-    // envelope
-    out.gain.cancelScheduledValues(time);
-    out.gain.setValueAtTime(0, time);
+    out.gain.setValueAtTime(0,time);
     out.gain.linearRampToValueAtTime((opts.gain ?? 0.5)*vel, time+attack);
     out.gain.linearRampToValueAtTime((opts.gain ?? 0.5)*vel*sus, time+attack+decay);
     out.gain.linearRampToValueAtTime(0.0001, time+attack+decay+rel);
@@ -363,21 +415,30 @@ class LiveEngine {
 
   private playLead(time:number, opts:PlayOptions, note:number, vel:number){
     const ctx = this.ctx!;
-    const unison = opts.unison ?? 3;
     const baseFreq = 440 * Math.pow(2,(note-69)/12);
-    const out = ctx.createGain(); out.gain.value=0; out.connect(this.masterGain!);
-    const attack = opts.env?.attack ?? 0.01;
-    const decay = opts.env?.decay ?? 0.25;
-    const sus = opts.env?.sustain ?? 0.5;
-    const rel = opts.env?.release ?? 0.25;
-    for (let i=0;i<unison;i++){
-      const osc = ctx.createOscillator(); osc.type='sawtooth';
-      const det = (i-(unison-1)/2)*6; // cents
-      osc.frequency.setValueAtTime(baseFreq * Math.pow(2, det/1200), time);
-      const g = ctx.createGain(); g.gain.value = 1/unison;
-      osc.connect(g).connect(out); osc.start(time); osc.stop(time+attack+decay+rel+0.5);
+    const out = ctx.createGain(); out.connect(this.masterGain!);
+    const attack = opts.env?.attack ?? 0.008;
+    const decay = opts.env?.decay ?? 0.22;
+    const sus = opts.env?.sustain ?? 0.45;
+    const rel = opts.env?.release ?? 0.28;
+    if (opts.wave==='supersaw') {
+      const unison = opts.unison ?? 6;
+      const detune = (opts.detune ?? 16)/2;
+      for (let i=0;i<unison;i++){
+        const osc = ctx.createOscillator(); osc.type='sawtooth';
+        const spread = (i-(unison-1)/2)/((unison-1)/2 || 1);
+        const cents = spread * detune;
+        osc.frequency.setValueAtTime(baseFreq*Math.pow(2,cents/1200), time);
+        const g = ctx.createGain(); g.gain.value = 1/unison;
+        osc.connect(g).connect(out); osc.start(time); osc.stop(time+attack+decay+rel+0.6);
+      }
+    } else {
+      const osc = ctx.createOscillator();
+      const wt = (opts.wave === 'saw' ? 'sawtooth' : opts.wave === 'square' ? 'square' : opts.wave === 'triangle' ? 'triangle' : opts.wave === 'sine' ? 'sine' : 'sawtooth');
+      osc.type = wt;
+      osc.frequency.setValueAtTime(baseFreq, time); osc.connect(out); osc.start(time); osc.stop(time+attack+decay+rel+0.6);
     }
-    out.gain.setValueAtTime(0, time);
+    out.gain.setValueAtTime(0,time);
     out.gain.linearRampToValueAtTime((opts.gain ?? 0.55)*vel, time+attack);
     out.gain.linearRampToValueAtTime((opts.gain ?? 0.55)*vel*sus, time+attack+decay);
     out.gain.linearRampToValueAtTime(0.0001, time+attack+decay+rel);
@@ -491,15 +552,15 @@ class LiveEngine {
   }
 
   private applySidechain(time:number){
-    // Phase1: global master duck (fast attack, short release)
+    // Quick patch: gentler ducking (shallower & slightly longer release)
     if (!this.masterGain) return;
     const g = this.masterGain.gain;
-    const nowBase = g.value;
-    const duck = Math.max(0.18, nowBase * 0.35);
+    const base = g.value;
+    const duck = base * 0.65; // was ~0.35 depth, now milder
     g.cancelScheduledValues(time);
-    g.setValueAtTime(nowBase, time);
-    g.linearRampToValueAtTime(duck, time + 0.01);
-    g.linearRampToValueAtTime(nowBase, time + 0.28);
+    g.setValueAtTime(base, time);
+    g.linearRampToValueAtTime(duck, time + 0.015);
+    g.linearRampToValueAtTime(base, time + 0.38);
   }
 }
 
