@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { IconSettings, IconSearch, IconDocs, IconTheme, IconSun, IconMoon } from './icons/Icons';
 import type React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GROUPS, OPTIONS, SUBOPTS, ORDER, PARAMS_LOOKUP, type GroupId } from "../data/taxonomy";
@@ -71,6 +72,26 @@ function buildPrompt(selections: Record<GroupId, Set<string>>, topic: string, bp
   if (topic.trim()) chunks.push(`Theme: ${topic.trim()}`);
 
   return chunks.join(", ");
+}
+
+// Theme preference hook
+function useAutoDarkMode(){
+  const [darkMode, setDarkMode] = useState<boolean>(()=>{
+    if (typeof window==='undefined') return true;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+  useEffect(()=> {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = ()=> setDarkMode(mq.matches);
+    mq.addEventListener('change', handler);
+    return ()=> mq.removeEventListener('change', handler);
+  },[]);
+  useEffect(()=> {
+    const root = document.documentElement;
+    if (darkMode) root.classList.add('dark'); else root.classList.remove('dark');
+  },[darkMode]);
+  return { darkMode, setDarkMode } as const;
 }
 
 // PARAMS_LOOKUP imported
@@ -405,6 +426,7 @@ function CompactGroup({ group, lang, selections, setSelections, query, pinned, s
 }
 
 export default function TechnoPromptGenerator() {
+  const { darkMode, setDarkMode } = useAutoDarkMode();
   const [topic, setTopic] = useState("");
   const [bpm, setBpm] = useState<number | undefined>(128);
   const [selections, setSelections] = useState<Record<GroupId, Set<string>>>(emptyState);
@@ -528,7 +550,7 @@ export default function TechnoPromptGenerator() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-[#05070d] text-slate-100 relative overflow-x-hidden font-sans">
+    <div className="min-h-screen w-full bg-[#05070d] text-slate-100 relative overflow-x-hidden font-sans" data-theme={darkMode? 'dark':'light'}>
       {/* arcade grid background */}
       <div className="pointer-events-none absolute inset-0 [background-image:radial-gradient(circle_at_50%_0,rgba(56,189,248,0.12),transparent_55%),linear-gradient(transparent_0,transparent_31px,rgba(255,255,255,0.04)_31px),linear-gradient(90deg,transparent_0,transparent_31px,rgba(255,255,255,0.04)_31px)] bg-[length:100%_100%,32px_32px,32px_32px]" />
 
@@ -541,12 +563,17 @@ export default function TechnoPromptGenerator() {
         >
           TECHNO PROMPT GENERATOR
         </motion.h1>
-        <div className="flex gap-2 items-center flex-wrap">
-          <button onClick={savePreset} className="px-3 py-1 rounded-md bg-gradient-to-r from-cyan-600/30 to-teal-500/30 border border-cyan-400/60 text-xs hover:from-cyan-600/40 hover:to-teal-500/40 shadow-inner shadow-cyan-400/10">Save Preset</button>
-          <button onClick={clearAll} className="px-3 py-1 rounded-md bg-gradient-to-r from-pink-600/25 to-fuchsia-600/25 border border-pink-400/60 text-xs hover:from-pink-600/35 hover:to-fuchsia-600/35 shadow-inner shadow-pink-400/10">Clear</button>
-          <button onClick={()=> setCompact(c=>!c)} className="px-3 py-1 rounded-md bg-slate-700/40 border border-slate-500 text-xs hover:border-cyan-400">{compact ? (lang==='kr'?'확장모드':'Expanded') : (lang==='kr'?'콤팩트':'Compact')}</button>
-          <button onClick={()=> setHorizontal(h=>!h)} className="px-3 py-1 rounded-md bg-slate-700/40 border border-slate-500 text-xs hover:border-cyan-400">{horizontal ? (lang==='kr'?'세로배치':'Vertical') : (lang==='kr'?'가로배치':'Horizontal')}</button>
-          <button onClick={()=> setDense(d=>!d)} className="px-3 py-1 rounded-md bg-slate-700/40 border border-slate-500 text-xs hover:border-cyan-400">{dense ? (lang==='kr'?'기본배치':'Normal') : (lang==='kr'?'밀집배치':'Dense')}</button>
+        <div className="flex gap-2 items-center flex-wrap ios-cluster">
+          <button onClick={savePreset} className="ios-bubble" data-variant="accent">{lang==='kr'? '프리셋 저장':'Save Preset'}</button>
+          <button onClick={clearAll} className="ios-bubble">{lang==='kr'? '초기화':'Clear'}</button>
+          <button onClick={()=> setCompact(c=>!c)} className="ios-bubble">{compact ? (lang==='kr'?'확장모드':'Expanded') : (lang==='kr'?'콤팩트':'Compact')}</button>
+          <button onClick={()=> setHorizontal(h=>!h)} className="ios-bubble">{horizontal ? (lang==='kr'?'세로배치':'Vertical') : (lang==='kr'?'가로배치':'Horizontal')}</button>
+          <button onClick={()=> setDense(d=>!d)} className="ios-bubble">{dense ? (lang==='kr'?'기본배치':'Normal') : (lang==='kr'?'밀집배치':'Dense')}</button>
+          <div className="flex gap-1 ml-2">
+            <button className="ios-bubble" title="Docs"><IconDocs size={16} /></button>
+            <button className="ios-bubble" title="Theme" onClick={()=> setDarkMode(d=>!d)}>{darkMode? <IconSun size={16} /> : <IconMoon size={16} />}</button>
+            <button className="ios-bubble" title="Settings"><IconSettings size={16} /></button>
+          </div>
           <div className="flex items-center gap-1 text-[10px] text-slate-400 ml-1">
             <span>Rec</span>
             <select value={recTier} onChange={e=> setRecTier(e.target.value as any)} className="bg-slate-800/50 border border-slate-600 rounded px-1 py-0.5 text-[10px]">
@@ -714,7 +741,7 @@ export default function TechnoPromptGenerator() {
               {prompt || <span className="text-slate-500">Your techno prompt will appear here…</span>}
             </div>
             <div className="flex gap-2 mt-3">
-              <button onClick={copyPrompt} className="px-3 py-1.5 rounded bg-gradient-to-r from-cyan-600/30 to-teal-500/30 border border-cyan-400/60 text-xs hover:from-cyan-600/40 hover:to-teal-500/40">Copy</button>
+              <button onClick={copyPrompt} className="ios-pill" style={{['--mx' as any]:'40%', ['--my' as any]:'35%'}}>Copy</button>
             </div>
           </div>
 

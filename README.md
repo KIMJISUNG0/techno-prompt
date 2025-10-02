@@ -131,6 +131,121 @@ tsconfig.json
 - 장르 팩 Lazy Load (dynamic import)
 - Validator 경고 레벨 세분화(JSON 리포트)
 
+## Live Coding & Audio Engine (Phase1 → 확장)
+Phase1: 완전 커스텀 WebAudio 합성 엔진 및 콘솔 (기본 패턴/합성) → 이후 Tone.js 하이브리드 + 고급 Visualization + Pattern DSL v2 + FX 커스터마이징으로 확장.
+- 지원 음색: kick / snare / hat / bass / lead / pad (+ band extensions: guitar, bassGtr, piano, organ, tom, clap, ride)
+- 패턴: 16 스텝 반복, 문자 기반 velocity (`X` accent, `x` normal, `.` ghost, `-` rest)
+- FX: 딜레이, 리버브(프로시저럴 임펄스), 마스터 컴프레서, 글로벌 사이드체인 duck (킥 트리거)
+- Swing 퍼센트 적용 (짝수 16분 지연)
+- Patch Registry: `registerPatch`, `triggerPatch`, `listPatches`
+- 실시간 파라미터 갱신: `update(id, { gain, pattern, decay ... })`
+- Sandbox 보안 강화: 허용 API 화이트리스트 & `with` 제거
+
+### Phase2 (계획)
+- 샘플 로더 (간단 1‑shot + 경량 캐싱)
+- 개별 버스 사이드체인 (sidechain group tagging)
+- Supersaw / Noise Layer 확장 (unison detune, 초저역 EQ trim)
+- 필터/피치 Env & LFO 매트릭스 확장 (다중 LFO 라우팅)
+- 패턴 변형 유틸 (humanize, rotate, density 스케일)
+
+### Tone.js 하이브리드 통합
+Phase1.5 로 Tone.js 를 선택적(poly / FM / Metal 등) 음색 재생에 도입.
+- 커스텀 엔진: 초경량 패턴 드럼 & 베이스 (낮은 오버헤드)
+- Tone.js: 고수준 Synth/FMSynth/AMSynth/MetalSynth/NoiseSynth 등 즉시 호출
+- Lazy Load: 최초 `tonePlay()` 호출 시 import → 번들 초기 용량 최소화
+- Sandbox API: `tonePlay(id, { type, notes, duration, velocity })`, `toneStop(id)`, `toneStopAll()`, `listTone()`
+- 향후 연동: Tone Transport ↔ 커스텀 스케줄러 BPM 동기 (현재는 단발 트리거 중심)
+
+#### 확장 (Phase1.5 + v2)
+- FX 체인 옵션(문자열 + 커스터마이징 객체)
+- BPM 동기: `setToneBPM(128)` → `tonePatternPlay` Transport 기반 스텝
+- Pattern DSL v1 → v2 업그레이드 (아래 ‘Pattern DSL v2’ 참고)
+- 자동 메모리 청소: 45s 이상 미사용 Tone 인스턴스 dispose
+- Transport 기반 재생: 지터 감소 및 홀드/악센트 문법 지원
+
+### Pattern DSL v2 (Transport 기반)
+문자열로 시퀀스를 정의하고 Tone.Transport 스케줄로 반복:
+- 노트 토큰: `C4`, `D#3`, `G2` (대소문자 무관)
+- 휴지: `.` 또는 `-`
+- 홀드: `_` 직전 노트 길이 +1 스텝 (연속으로 누적 가능, 예: `C4__` = 3스텝)
+- 벨로시티 악센트: `!` (×1.2), `?` (×0.75) 노트 직후에 배치
+- 기본 스텝: 16분 (옵션 `step:'16n'`)
+
+예시:
+```js
+setToneBPM(128)
+tonePatternPlay('arp1', 'C4_E4.G4!_B4.-C5?', { type:'synth', velocity:0.85, fx:[{ type:'reverb', decay:3 }] })
+```
+
+### FX 커스터마이징 (문자열 vs 객체)
+`tonePlay` / `tonePatternPlay` 의 `fx` 필드:
+- 문자열: 공유 캐시 FX (메모리 절약) – 예: `['reverb','delay']`
+- 객체: 개별 인스턴스 (파라미터 커스터마이즈)
+
+지원 타입 및 대표 파라미터:
+- `reverb`: `decay`, `wet`
+- `delay`: `time`, `feedback`, `wet`
+- `distortion`: `amount` (`distortion` alias)
+- `chorus`: `frequency`, `delayTime`, `depth`
+- 추가: `bitcrusher (bits)`, `phaser (frequency, octaves, baseFrequency)`, `filter (frequency, type)`
+
+예시:
+```js
+tonePlay('pad', {
+	type:'synth',
+	notes:['C3','E3','G3','B3'],
+	duration:'2n',
+	fx:[
+		{ type:'reverb', decay:4.2, wet:0.4 },
+		{ type:'delay', time:'8n', feedback:0.32, wet:0.28 }
+	]
+})
+```
+
+### Analyser API & 이벤트
+엔진 post-FX 지점의 `AnalyserNode` 스냅샷:
+```js
+getAnalyser() // => { freq:Uint8Array, time:Uint8Array, level:number }
+```
+그리고 각 히트는 다음 커스텀 이벤트 디스패치:
+```js
+window.addEventListener('liveaudio.hit', e => {
+	// e.detail = { role, id, velocity, index, when }
+})
+```
+
+### Advanced Visualization
+`AudioViz` 컴포넌트:
+- 주파수 바 (adaptive hue: 저역→고역) + 피크 홀드 라인
+- 시간 파형 오버레이 (lighter blend)
+- 히트 이벤트 플래시 (감쇠 기반 alpha)
+- 30fps 제한 / 메모리 재사용 (Zero GC per-frame)
+
+### iOS26 스타일 UI & 아이콘
+CSS 토큰 + conic gradient ring 기반의 `.ios-bubble`, `.ios-pill` 제공. 
+아이콘 세트(`src/components/icons/Icons.tsx`) – `IconPlay`, `IconPause`, `IconTheme`, `IconDocs` 등 currentColor 활용 경량 SVG.
+
+### Auto Theme
+`prefers-color-scheme` 감지하여 다크/라이트 자동 선택 + 수동 토글 지원 (`data-theme` + root class `dark`).
+
+### iOS26 스타일 UI 레이어
+커스텀 glass + chroma ring:
+- 새 클래스: `.ios-bubble` (라운드 컨트롤), `.ios-pill` (확장형), `.ios-cluster`
+- Conic gradient ring + radial sheen + blur/saturate 조합
+- CSS 토큰: `--ios-ring`, `--ios-sheen`, `--ios-glass-bg`
+- 헤더 액션 버튼 및 Copy 버튼 반영
+
+### Lightweight Audio Visualization
+기본 컨셉은 유지되며 위 ‘Advanced Visualization’ 섹션으로 기능 확장됨.
+
+### Phase3 (계획)
+- 멀티샘플 매핑 (velocity layer / round robin)
+- AI 패턴/프로그레션 생성 (프롬프트 → seed 변형)
+- Patch Morphing (두 패치 연속 보간)
+- 오디오 Export (오프라인 렌더링 or MediaRecorder)
+
+문서화 진행 상황: `LiveCoding` 콘솔 Help 탭에 최신 API 반영.
+
 ## 공유 가능한 장르 해시
 직접 장르/하이브리드 진입:
 ```

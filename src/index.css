@@ -1,3 +1,161 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Global Dark Glass + Background */
+html, body, #root {
+	background: radial-gradient(circle at 20% 25%, #0d1724 0%, #05070d 60%, #03040a 100%);
+	min-height:100%;
+}
+
+body::before {
+	content:"";
+	position:fixed; inset:0; pointer-events:none;
+	background:
+		repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 80px),
+		repeating-linear-gradient(0deg, rgba(255,255,255,0.015) 0, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 80px);
+	mask: linear-gradient(to bottom, rgba(255,255,255,0.7), rgba(255,255,255,0));
+	z-index:0;
+}
+
+.glass-card {
+	position:relative;
+	background:rgba(255,255,255,0.05);
+	backdrop-filter: blur(10px) saturate(150%);
+	-webkit-backdrop-filter: blur(10px) saturate(150%);
+	border:1px solid rgba(255,255,255,0.08);
+	box-shadow:0 4px 14px -6px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+	border-radius:16px;
+}
+
+/* Bubble Button (iOS style) */
+.bubble-btn {
+	position:relative; overflow:hidden; border-radius:9999px;
+	padding:0.55rem 1.05rem; font-size:11px; letter-spacing:.4px;
+	border:1px solid rgba(255,255,255,0.15);
+	background:
+		radial-gradient(at 35% 30%, rgba(255,255,255,0.25), rgba(255,255,255,0) 60%),
+		linear-gradient(140deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+	backdrop-filter: blur(12px) saturate(160%);
+	-webkit-backdrop-filter: blur(12px) saturate(160%);
+	box-shadow:0 4px 12px -4px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.08);
+	transition:background .35s ease, transform .3s ease, box-shadow .45s ease, color .3s;
+	color:#e3f6ff;
+}
+.bubble-btn[data-variant="primary"]{ color:#08222b; font-weight:600; }
+.bubble-btn:hover {
+	background:
+		radial-gradient(at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.35), rgba(255,255,255,0) 65%),
+		linear-gradient(140deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05));
+	box-shadow:0 6px 18px -6px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.12);
+}
+.bubble-btn:active { transform:scale(.96); }
+.bubble-btn:focus-visible { outline:2px solid rgba(134,239,255,0.6); outline-offset:2px; }
+.bubble-btn.ripple-anim::before {
+	content:""; position:absolute; width:14px; height:14px; border-radius:50%;
+	left:calc(var(--mx,50%) - 7px); top:calc(var(--my,50%) - 7px);
+	background:rgba(255,255,255,0.55); mix-blend-mode:overlay; pointer-events:none;
+	animation:bubble-ripple .6s ease-out forwards;
+}
+@keyframes bubble-ripple {
+	0% { opacity:.85; transform:scale(1); }
+	60% { opacity:.35; }
+	100% { opacity:0; transform:scale(7.5); }
+}
+
+@media (prefers-reduced-motion: reduce){
+	.bubble-btn, .bubble-btn:hover { transition:none; }
+	.bubble-btn:active { transform:none; }
+}
+
+/* ---------------- iOS26 Inspired Layer (bubbly control center style) ---------------- */
+:root {
+	--ios-glass-bg: rgba(255,255,255,0.08);
+	--ios-glow-cyan: 0 0 0 1px rgba(175,255,255,0.18), 0 4px 18px -6px rgba(0,180,255,0.5);
+	--ios-ring: conic-gradient(from 0deg at 50% 50%, rgba(0,200,255,0.55), rgba(255,80,180,0.55), rgba(0,200,255,0.55));
+	--ios-sheen: radial-gradient(at 30% 25%, rgba(255,255,255,0.75), rgba(255,255,255,0) 55%);
+	--ios-depth-shadow: 0 4px 10px -4px rgba(0,0,0,0.55), 0 6px 22px -10px rgba(0,0,0,0.8);
+}
+
+.ios-bubble {
+	position:relative; isolation:isolate; user-select:none;
+	border-radius:22px; padding:0.75rem 1rem; font-size:12px; font-weight:500; letter-spacing:.35px;
+	background:
+		var(--ios-sheen),
+		linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05));
+	backdrop-filter:blur(18px) saturate(170%) contrast(110%);
+	-webkit-backdrop-filter:blur(18px) saturate(170%) contrast(110%);
+	border:1px solid rgba(255,255,255,0.22);
+	box-shadow:var(--ios-depth-shadow), inset 0 0 0 1px rgba(255,255,255,0.12);
+	color:#e6faff; display:inline-flex; align-items:center; gap:.55rem; cursor:pointer;
+	transition:box-shadow .45s ease, background .4s ease, transform .35s ease;
+}
+.ios-bubble::after { /* dynamic chroma ring */
+	content:""; position:absolute; inset:-2px; border-radius:inherit; padding:2px; z-index:-1;
+	background:var(--ios-ring);
+	-webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+	-webkit-mask-composite:xor; mask-composite:exclude;
+	opacity:.35; filter:blur(4px); transition:opacity .4s;
+}
+.ios-bubble[data-variant="accent"]{ color:#061c22; font-weight:600; }
+.ios-bubble:hover { box-shadow:0 6px 26px -8px rgba(0,200,255,0.55), 0 0 0 1px rgba(255,255,255,0.35), inset 0 0 0 1px rgba(255,255,255,0.18); }
+.ios-bubble:hover::after { opacity:.65; }
+.ios-bubble:active { transform:translateY(1px) scale(.985); }
+.ios-bubble:focus-visible { outline:2px solid rgba(170,240,255,0.75); outline-offset:3px; }
+
+.ios-pill { /* elongated control (e.g., Focus) */
+	position:relative; min-width:160px; display:inline-flex; justify-content:center; align-items:center;
+	border-radius:32px; padding:0.85rem 1.4rem; font-size:13px; font-weight:600; letter-spacing:.4px;
+	background:
+		radial-gradient(at 40% 30%, rgba(255,255,255,0.75), rgba(255,255,255,0) 60%),
+		linear-gradient(120deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04));
+	backdrop-filter:blur(20px) saturate(180%);
+	-webkit-backdrop-filter:blur(20px) saturate(180%);
+	border:1px solid rgba(255,255,255,0.25);
+	box-shadow:0 6px 24px -8px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.18), inset 0 0 0 1px rgba(255,255,255,0.28);
+	color:#f2fbff; cursor:pointer; transition:transform .4s cubic-bezier(.22,.68,.37,1), box-shadow .5s, background .5s;
+}
+.ios-pill::before { /* moving liquid aura */
+	content:""; position:absolute; inset:0; border-radius:inherit; mix-blend-mode:overlay; pointer-events:none;
+	background:radial-gradient(at var(--mx,55%) var(--my,45%), rgba(0,200,255,0.55), rgba(255,54,160,0.5) 35%, rgba(0,0,0,0) 70%);
+	filter:blur(28px); opacity:.55; transition:opacity .5s, background .35s;
+}
+.ios-pill:hover { box-shadow:0 10px 36px -10px rgba(0,200,255,0.65), 0 0 0 1px rgba(255,255,255,0.32), inset 0 0 0 1px rgba(255,255,255,0.4); }
+.ios-pill:hover::before { opacity:.85; }
+.ios-pill:active { transform:scale(.975); }
+.ios-pill:focus-visible { outline:2px solid rgba(0,210,255,0.7); outline-offset:3px; }
+
+/* Utility cluster for stacked bubbles */
+.ios-cluster { display:flex; flex-wrap:wrap; gap:.75rem; }
+
+/* Minimal icon placeholder style (monochrome) */
+.ios-icon { width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; opacity:.9; }
+
+/* Motion reduction */
+@media (prefers-reduced-motion: reduce){
+	.ios-bubble, .ios-pill { transition:none; }
+	.ios-bubble:active, .ios-pill:active { transform:none; }
+}
+
+/* ---------------- Extra Dark Theme Utilities ---------------- */
+.app-dark-root { background:#020409; background-image:radial-gradient(circle at 18% 22%, #0a1621 0%, #04070d 55%, #020409 100%); }
+.app-dark-nav { background:linear-gradient(to bottom, #050a11, #03060c); }
+.app-dark-surface { background:rgba(20,26,38,0.42); backdrop-filter:blur(14px) saturate(140%); -webkit-backdrop-filter:blur(14px) saturate(140%); }
+.panel-dim { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); box-shadow:0 2px 6px -2px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(255,255,255,0.04); }
+.panel-dim-heading { color:#8bd9ff; letter-spacing:.08em; font-weight:500; }
+.text-dim { color:#7a8ca3; }
+
+/* Theme toggle (glass pill) */
+.theme-toggle { position:relative; display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:22px; font-size:11px; line-height:1; cursor:pointer; user-select:none; background:linear-gradient(145deg,rgba(255,255,255,0.16),rgba(255,255,255,0.04)); border:1px solid rgba(255,255,255,0.25); backdrop-filter:blur(14px) saturate(160%); -webkit-backdrop-filter:blur(14px) saturate(160%); box-shadow:0 4px 14px -6px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.18); transition:.45s background,.45s box-shadow; }
+.theme-toggle:hover { background:linear-gradient(145deg,rgba(255,255,255,0.22),rgba(255,255,255,0.07)); }
+.theme-toggle[data-mode="dark"] { color:#bfe9ff; }
+.theme-toggle[data-mode="light"] { color:#17323c; }
+.theme-toggle .tt-track { position:relative; width:40px; height:18px; background:rgba(255,255,255,0.25); border-radius:14px; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.25); }
+.theme-toggle .tt-thumb { position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:radial-gradient(at 35% 30%,#fff,rgba(255,255,255,0.2)); box-shadow:0 2px 6px -2px rgba(0,0,0,0.7); transition:.35s transform; }
+.theme-toggle[data-mode="light"] .tt-thumb { transform:translateX(22px); }
+.theme-toggle .tt-ico { width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; }
+
+[data-theme='dark'] { color-scheme: dark; }
+[data-theme='light'] { color-scheme: light; }
+

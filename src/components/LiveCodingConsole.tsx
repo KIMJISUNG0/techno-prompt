@@ -1,39 +1,32 @@
 import React, { useEffect, useState } from 'react';
+import AudioViz from './AudioViz';
 import { runLiveCode } from '../live/sandbox';
 
 interface LogEntry { ts: number; text: string; type: 'info'|'error'; }
 
 export function LiveCodingConsole({ onClose }:{ onClose?: ()=>void }) {
-  const [code, setCode] = useState<string>(`// Live coding playground\nsetBPM(130)\nplay("kick", { pattern: "x---x---x---x---" })`);
+  const [code, setCode] = useState(`// Live coding playground\nsetBPM(128)\nplay('kick',{ pattern:'x---x---x---x---' })`);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'code'|'help'>('code');
-  // (future) queued snippet buffer if we debounce inserts
-  // const insertQueue = useRef<string[]>([]);
 
   useEffect(()=> {
-    function onInsert(e: any){
+    function onInsert(e:any){
       if (e.detail?.snippet){
         setCode(prev=> prev + (prev.endsWith('\n')? '':'\n') + e.detail.snippet + '\n');
-        pushLog('Inserted snippet', 'info');
+        pushLog('Inserted snippet','info');
       }
     }
     window.addEventListener('livecode.insert', onInsert as any);
     return ()=> window.removeEventListener('livecode.insert', onInsert as any);
   },[]);
 
-  function pushLog(text:string, type:'info'|'error'){ setLogs(l=> [...l.slice(-199), { ts: Date.now(), text, type }]); }
-
-  function run(){
-    const result = runLiveCode(code);
-    if (result.ok) pushLog('Run OK', 'info'); else pushLog('Error: '+result.error, 'error');
-  }
-  function stopAll(){
-    const result = runLiveCode('stopAll()');
-    if (result.ok) pushLog('Stopped all', 'info');
-  }
+  function pushLog(text:string, type:'info'|'error'){ setLogs(l=> [...l.slice(-199), { ts:Date.now(), text, type }]); }
+  function run(){ const r = runLiveCode(code); if (r.ok) pushLog('Run OK','info'); else pushLog('Error: '+r.error,'error'); }
+  function stopAll(){ const r = runLiveCode('stopAll()'); if (r.ok) pushLog('Stopped all','info'); }
 
   return (
-    <div className="flex flex-col h-full bg-black/60 border-l border-white/10">
+    <div className="flex flex-col h-full bg-black/60 border-l border-white/10 relative overflow-hidden">
+      <AudioViz bars={48} className="opacity-40 mix-blend-plus-lighter pointer-events-none" />
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
         <div className="flex gap-2 text-[11px]">
           <button onClick={()=> setActiveTab('code')} className={`px-2 py-1 rounded ${activeTab==='code'? 'bg-cyan-600/30 text-cyan-200':'text-slate-400 hover:text-cyan-200'}`}>Code</button>
@@ -59,24 +52,64 @@ export function LiveCodingConsole({ onClose }:{ onClose?: ()=>void }) {
         </div>
       )}
       {activeTab==='help' && (
-        <div className="p-3 text-[11px] leading-relaxed text-slate-300 overflow-auto">
-          <div className="mb-2 font-semibold text-cyan-200">Available API</div>
-          <ul className="list-disc pl-4 space-y-1">
-            <li><code>setBPM(n)</code> : Set tempo</li>
-            <li><code>play(id, {`{ pattern, notes?, gain?, decay? }`})</code> : Register pattern (16-step)</li>
-            <li><code>stop(id)</code> / <code>stopAll()</code></li>
-          </ul>
-          <div className="mt-3 font-semibold text-cyan-200">Example</div>
-          <pre className="bg-black/40 p-2 rounded border border-white/5 whitespace-pre-wrap">{`setBPM(130)
-play("kick", { pattern: "x---x---x---x---" })
-play("hat", { pattern: "-x-x-x-x-x-x-x-x", gain:0.3 })
-play("bass", { pattern: "x---x---x---x---", notes:[36,36,43,31] })`}</pre>
+        <div className="p-3 text-[11px] leading-relaxed text-slate-300 overflow-auto space-y-5">
+          <section>
+            <div className="mb-1 font-semibold text-cyan-200">Core API</div>
+            <ul className="list-disc pl-4 space-y-1">
+              <li><code>setBPM(n)</code> / <code>setSwing(pct)</code></li>
+              <li><code>play()</code>, <code>update()</code>, <code>stop()</code>, <code>stopAll()</code></li>
+              <li><code>registerPatch()</code>, <code>triggerPatch()</code>, <code>listPatches()</code></li>
+              <li><code>tonePlay()</code>, <code>tonePatternPlay()</code>, <code>toneStop()</code>, <code>toneStopAll()</code></li>
+              <li><code>setToneBPM()</code>, <code>getAnalyser()</code>, <code>liveaudio.hit</code></li>
+            </ul>
+          </section>
+          <section>
+            <div className="mb-1 font-semibold text-cyan-200">Pattern DSL v2</div>
+            <ul className="list-disc pl-4 space-y-1 text-slate-400">
+              <li>Notes: <code>C4</code>, <code>D#3</code> 등</li>
+              <li>Rest: <code>.</code> 또는 <code>-</code></li>
+              <li>Hold: <code>_</code> 이전 노트 길이 +1 (누적 길이)</li>
+              <li>Velocity: <code>!</code> (accent) / <code>?</code> (soft)</li>
+            </ul>
+            <pre className="bg-black/30 p-2 rounded border border-white/5 whitespace-pre-wrap">{`setToneBPM(128)
+tonePatternPlay('arp','C4_E4.G4!_B4.-C5?', { type:'synth', velocity:0.85 })`}</pre>
+          </section>
+          <section>
+            <div className="mb-1 font-semibold text-cyan-200">FX Customization</div>
+            <pre className="bg-black/30 p-2 rounded border border-white/5 whitespace-pre-wrap">{`tonePlay('pad',{ type:'synth', notes:['C3','E3','G3','B3'], fx:[{ type:'reverb', decay:4.2, wet:0.4 }] })`}</pre>
+          </section>
+          <section>
+            <div className="mb-1 font-semibold text-cyan-200">Analyser & Events</div>
+            <ul className="list-disc pl-4 space-y-1 text-slate-400">
+              <li><code>getAnalyser()</code> → {`{ freq,time,level }`}</li>
+              <li><code>liveaudio.hit</code> → <code>detail.role / velocity</code></li>
+            </ul>
+          </section>
+          <section>
+            <div className="mb-1 font-semibold text-cyan-200">Patch & Update</div>
+            <pre className="bg-black/30 p-2 rounded border border-white/5 whitespace-pre-wrap">{`registerPatch('HardKick',{ type:'kick', pattern:'x---x---x---x---', base:{ gain:0.95 } })
+triggerPatch('HardKick')
+play('hat',{ pattern:'-x-x-x-x-x-x-x-x', gain:0.3 })
+update('hat',{ gain:0.22 })`}</pre>
+          </section>
+          <section>
+            <div className="mb-1 font-semibold text-cyan-200">New Band Instruments</div>
+            <ul className="list-disc pl-4 space-y-1 text-slate-400">
+              <li><code>guitar</code> (Karplus-Strong pluck) – <code>{"play('gtr',{ type:'guitar', pattern:'x---x---x---x---', notes:[52,55,59,55] })"}</code></li>
+              <li><code>bassGtr</code> (low saw + LP) – <code>{"play('bassG',{ type:'bassGtr', pattern:'x---x---x---x---', notes:[36,36,43,31] })"}</code></li>
+              <li><code>piano</code> (additive partials) – env attack/decay/release 적용</li>
+              <li><code>organ</code> (sine harmonics sustain)</li>
+              <li><code>tom</code> (pitch sweep)</li>
+              <li><code>clap</code> (multi burst noise)</li>
+              <li><code>ride</code> (bandpass noise long decay)</li>
+            </ul>
+          </section>
         </div>
       )}
     </div>
   );
 }
 
-export function dispatchLiveCodeSnippet(snippet: string){
-  window.dispatchEvent(new CustomEvent('livecode.insert', { detail: { snippet } }));
+export function dispatchLiveCodeSnippet(snippet:string){
+  window.dispatchEvent(new CustomEvent('livecode.insert', { detail:{ snippet } }));
 }

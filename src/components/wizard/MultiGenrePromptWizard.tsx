@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LiveCodingConsole, dispatchLiveCodeSnippet } from '../LiveCodingConsole';
+import { LiveCodingConsole } from '../LiveCodingConsole';
 import { universalPack } from '../../data/multigenre/universal';
 import { GENRE_PACKS } from '../../data/multigenre/genres';
 import { mergePacks, mergeMultiple } from '../../data/multigenre/merge';
@@ -156,7 +156,7 @@ export default function MultiGenrePromptWizard() {
   const accentGhost = `border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
   return (
     <div
-      className={`w-full min-h-screen bg-[#05070d] text-slate-100 px-6 py-8 ${activeTheme.glow}`}
+      className={`w-full min-h-screen app-dark-root text-slate-100 px-6 py-8 ${activeTheme.glow}`}
       style={secondTheme ? {
         ['--g1-from' as any]: extractFirstColor(activeTheme.gradient),
         ['--g1-via' as any]: extractMiddleColor(activeTheme.gradient),
@@ -164,10 +164,10 @@ export default function MultiGenrePromptWizard() {
       }: undefined}
     >
       <header className="mb-8 flex items-center justify-between">
-        <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT WIZARD{secondTheme? ' • HYBRID':''}</h1>
+  <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT COMPOSER{secondTheme? ' • HYBRID':''}</h1>
         <div className="flex gap-2 items-center">
-          {/* Header Live Coding Open Button */}
-          <button onClick={()=> window.dispatchEvent(new CustomEvent('livecode.requestOpen'))} className="text-[11px] px-3 py-1 rounded border border-cyan-400/50 bg-cyan-600/20 hover:bg-cyan-600/30 hover:text-cyan-100 transition">Live Coding</button>
+          {/* Header Live Coding Open Button (bubble style) */}
+          <BubbleButton onClick={()=> window.dispatchEvent(new CustomEvent('livecode.requestOpen'))} label="Live Coding" primary />
           {state.step!=='genre' && (
             <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>
           )}
@@ -202,8 +202,8 @@ function GenreStep({ onSelect }:{ onSelect:(g:GenreId)=>void }) {
       <h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select a Genre</h2>
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
         {placeholders.map(p=> (
-          <button key={p.id} onClick={()=> onSelect(p.id)} className="group relative border border-slate-700 rounded-xl p-4 text-left bg-white/5 hover:border-cyan-400 hover:bg-slate-800/40 transition shadow-inner shadow-black/20">
-            <div className="text-base font-medium tracking-wide group-hover:text-cyan-200">{p.label}</div>
+          <button key={p.id} onClick={()=> onSelect(p.id)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition">
+            <div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div>
             <p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description || 'Genre description...'}</p>
           </button>
         ))}
@@ -290,23 +290,11 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
     const found = recProgs.find(p=> p.id===pickedProg);
     return found? `Progression: ${found.roman}`: '';
   },[pickedProg, recProgs]);
-  function insertKick(){ dispatchLiveCodeSnippet(`play("kick", { pattern: "x---x---x---x---" })`); }
-  function insertHat(){ dispatchLiveCodeSnippet(`play("hat", { pattern: "-x-x-x-x-x-x-x-x", gain:0.35 })`); }
-  function insertBass(){ dispatchLiveCodeSnippet(`play("bass", { pattern: "x---x---x---x---", notes:[36,36,43,31] })`); }
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter && state.meter!=='4/4' ? ' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div>
         <button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button>
-      </div>
-      {/* Guidance banner */}
-      <div className="text-[10px] text-slate-500 bg-black/30 border border-slate-700 rounded px-3 py-2 leading-relaxed">
-        <span className="text-cyan-300">Compact Mode</span> 는 그룹을 접어 긴 리스트를 빠르게 스캔하도록 도와줍니다. Live Coding 패널은 우측 상단 버튼 또는 <kbd className="px-1 py-0.5 bg-slate-700/50 rounded border border-slate-600">Ctrl/Cmd + L</kbd> 로 열 수 있습니다.
-      </div>
-      <div className="flex gap-2 flex-wrap text-[10px]">
-        <button onClick={insertKick} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Kick to Live</button>
-        <button onClick={insertHat} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Hat to Live</button>
-        <button onClick={insertBass} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Bass to Live</button>
       </div>
       <div className="flex gap-3 text-[11px]">
         <button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button>
@@ -341,7 +329,7 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
         <div className="lg:col-span-1 space-y-6">
           <MelodyRecorder onResult={(r)=> setMelodySummary(r)} />
           {/* Progression Recommendations */}
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+          <div className="rounded-xl panel-dim p-3 space-y-2">
             <h4 className="text-[11px] uppercase tracking-wider text-slate-300">Genre Progressions</h4>
             {recProgs.length===0 && <div className="text-[11px] text-slate-500">No patterns</div>}
             <div className="flex flex-wrap gap-2">
@@ -375,7 +363,7 @@ function LiveCodingDock(){
   },[]);
   return (
     <>
-      <button onClick={()=> setOpen(o=> !o)} className="fixed bottom-4 right-4 z-40 px-3 py-2 rounded bg-cyan-600/30 backdrop-blur border border-cyan-400/50 text-[11px] hover:bg-cyan-600/40">
+      <button onClick={()=> setOpen(o=> !o)} className="fixed bottom-4 right-4 z-40 bubble-btn" data-variant="primary">
         {open? 'Close Live Coding':'Live Coding'}
       </button>
       {open && (
@@ -385,4 +373,30 @@ function LiveCodingDock(){
       )}
     </>
   );
+}
+
+// Reusable BubbleButton component (pointer tracking + ripple)
+function BubbleButton({ label, onClick, primary }: { label:string; onClick:()=>void; primary?:boolean }){
+  const ref = React.useRef<HTMLButtonElement|null>(null);
+  useEffect(()=> {
+    const el = ref.current; if(!el) return;
+    function move(e:PointerEvent){
+      if(!el) return;
+      const r = el.getBoundingClientRect();
+      const x = (e.clientX - r.left)/r.width*100; const y = (e.clientY - r.top)/r.height*100;
+      el.style.setProperty('--mx', x+'%');
+      el.style.setProperty('--my', y+'%');
+    }
+    function click(){
+      if(!el) return;
+      el.classList.remove('ripple-anim');
+      void el.offsetWidth; // force reflow
+      el.classList.add('ripple-anim');
+      setTimeout(()=> { if(el) el.classList.remove('ripple-anim'); }, 650);
+    }
+    el.addEventListener('pointermove', move);
+    el.addEventListener('click', click);
+    return ()=> { if(el){ el.removeEventListener('pointermove', move); el.removeEventListener('click', click);} };
+  },[]);
+  return <button ref={ref} data-variant={primary? 'primary':undefined} onClick={onClick} className="bubble-btn">{label}</button>;
 }
