@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { universalPack } from '../../data/multigenre/universal';
 import { GENRE_PACKS } from '../../data/multigenre/genres';
 import { mergePacks, mergeMultiple } from '../../data/multigenre/merge';
@@ -6,6 +6,8 @@ import type { GenreId, MergedSchema } from '../../data/multigenre/schema';
 import SchemaPromptBuilder from '../SchemaPromptBuilder';
 import { getGenreTheme } from '../../theme/genreThemes';
 import MelodyRecorder from '../melody/MelodyRecorder';
+import InstrumentPromptBuilder from '../InstrumentPromptBuilder';
+import { recommendProgressions } from '../../data/progressions';
 
 // --- gradient extraction helpers (best-effort: parse 'from-colorX via-colorY to-colorZ') ---
 function extractFirstColor(gradient:string){
@@ -256,6 +258,9 @@ function BpmTimeStep({ genre, presets, onConfirm, onBack, accentBtn, accentGhost
 function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState; onBack:()=>void; accentBtn:string; accentGhost:string }) {
   const [melodySummary, setMelodySummary] = useState<any|null>(null);
   const [includeMelody, setIncludeMelody] = useState(true);
+  const [mode, setMode] = useState<'schema'|'instrument'>('schema');
+  const [pickedProg, setPickedProg] = useState<string|undefined>(undefined);
+  const recProgs = useMemo(()=> state.genres? recommendProgressions(state.genres,5): state.genre? recommendProgressions([state.genre],5) : [], [state.genres,state.genre]);
   function buildMelodySuffix(){
     if (!includeMelody || !melodySummary) return '';
     const parts: string[] = [];
@@ -274,11 +279,20 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
     })
     .filter(Boolean)
     .join(' | ');
+  const progressionSuffix = useMemo(()=> {
+    if (!pickedProg) return '';
+    const found = recProgs.find(p=> p.id===pickedProg);
+    return found? `Progression: ${found.roman}`: '';
+  },[pickedProg, recProgs]);
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter && state.meter!=='4/4' ? ' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div>
         <button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button>
+      </div>
+      <div className="flex gap-3 text-[11px]">
+        <button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button>
+        <button onClick={()=> setMode('instrument')} className={`px-3 py-1 rounded border ${mode==='instrument'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Instrument Mode</button>
       </div>
       <div className="flex items-center gap-3 text-[11px] text-slate-400">
         <label className="flex items-center gap-1 cursor-pointer select-none">
@@ -289,18 +303,33 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
       </div>
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {state.schema && (
+          {mode==='schema' && state.schema && (
             <SchemaPromptBuilder
               schema={state.schema}
               bpm={state.bpm}
               meter={state.meter}
               swing={state.swing}
-              extraSuffix={[genreDescriptions, suffix].filter(Boolean).join(', ')}
+              extraSuffix={[genreDescriptions, progressionSuffix, suffix].filter(Boolean).join(', ')}
             />
+          )}
+          {mode==='instrument' && (
+            <InstrumentPromptBuilder />
           )}
         </div>
         <div className="lg:col-span-1 space-y-6">
           <MelodyRecorder onResult={(r)=> setMelodySummary(r)} />
+          {/* Progression Recommendations */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+            <h4 className="text-[11px] uppercase tracking-wider text-slate-300">Genre Progressions</h4>
+            {recProgs.length===0 && <div className="text-[11px] text-slate-500">No patterns</div>}
+            <div className="flex flex-wrap gap-2">
+              {recProgs.map((p:any)=> {
+                const on = p.id===pickedProg;
+                return <button key={p.id} onClick={()=> setPickedProg(on? undefined : p.id)} className={`px-2 py-1 rounded border text-[10px] transition ${on? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400 hover:text-fuchsia-200'}`}>{p.roman}</button>;
+              })}
+            </div>
+            {pickedProg && <div className="text-[10px] text-slate-500">Selected: {recProgs.find((p:any)=> p.id===pickedProg)?.label}</div>}
+          </div>
         </div>
       </div>
     </div>
