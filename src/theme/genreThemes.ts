@@ -49,6 +49,34 @@ export const GENRE_THEMES: Record<string, GenreTheme> = {
     glow: 'shadow-[0_0_24px_rgba(251,191,36,0.35)]',
     softBg: 'bg-yellow-500/10'
   },
+  boomBap: {
+    id: 'boomBap',
+    gradient: 'from-amber-400 via-yellow-300 to-stone-300',
+    accent: 'text-amber-300',
+    glow: 'shadow-[0_0_24px_rgba(245,158,11,0.35)]',
+    softBg: 'bg-amber-500/10'
+  },
+  trap: {
+    id: 'trap',
+    gradient: 'from-fuchsia-400 via-pink-400 to-purple-400',
+    accent: 'text-fuchsia-300',
+    glow: 'shadow-[0_0_24px_rgba(217,70,239,0.35)]',
+    softBg: 'bg-fuchsia-500/10'
+  },
+  lofiBeats: {
+    id: 'lofiBeats',
+    gradient: 'from-rose-300 via-pink-400 to-amber-300',
+    accent: 'text-rose-300',
+    glow: 'shadow-[0_0_24px_rgba(244,114,182,0.35)]',
+    softBg: 'bg-rose-500/10'
+  },
+  dnb: {
+    id: 'dnb',
+    gradient: 'from-lime-300 via-emerald-300 to-cyan-400',
+    accent: 'text-lime-300',
+    glow: 'shadow-[0_0_24px_rgba(132,204,22,0.35)]',
+    softBg: 'bg-lime-500/10'
+  },
   ambient: {
     id: 'ambient',
     gradient: 'from-sky-400 via-cyan-300 to-emerald-300',
@@ -56,12 +84,26 @@ export const GENRE_THEMES: Record<string, GenreTheme> = {
     glow: 'shadow-[0_0_24px_rgba(56,189,248,0.35)]',
     softBg: 'bg-sky-500/10'
   },
+  cinematic: {
+    id: 'cinematic',
+    gradient: 'from-purple-400 via-indigo-400 to-amber-300',
+    accent: 'text-indigo-300',
+    glow: 'shadow-[0_0_24px_rgba(129,140,248,0.35)]',
+    softBg: 'bg-indigo-500/10'
+  },
   orchestral: {
     id: 'orchestral',
     gradient: 'from-amber-300 via-yellow-200 to-stone-300',
     accent: 'text-amber-200',
     glow: 'shadow-[0_0_24px_rgba(245,158,11,0.35)]',
     softBg: 'bg-amber-400/10'
+  },
+  pop: {
+    id: 'pop',
+    gradient: 'from-pink-400 via-amber-300 to-cyan-300',
+    accent: 'text-pink-300',
+    glow: 'shadow-[0_0_24px_rgba(236,72,153,0.35)]',
+    softBg: 'bg-pink-500/10'
   },
   default: {
     id: 'default',

@@ -34,12 +34,21 @@ const GENRE_ALIASES: Record<string, GenreId> = {
 };
 
 const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;range:[number,number]}> = {
-  techno:{default:130,low:124,high:134,range:[122,136]},
-  house:{default:125,low:120,high:128,range:[118,128]},
-  trance:{default:138,low:134,high:140,range:[132,142]},
-  dnb:{default:174,low:170,high:176,range:[165,178]},
-  hiphop:{default:90,low:75,high:100,range:[70,100]},
-  ambient:{default:70,low:60,high:80,range:[50,90]},
+  // Typical genre tempo windows (researched average ranges)
+  techno:{default:130,low:124,high:134,range:[122,136]},              // 124–134
+  techhouse:{default:125,low:122,high:128,range:[120,129]},          // 122–128
+  house:{default:124,low:120,high:126,range:[118,128]},              // 120–126
+  trance:{default:138,low:134,high:140,range:[132,142]},             // 134–140
+  dnb:{default:174,low:170,high:176,range:[165,180]},                // 170–176
+  dubstep:{default:140,low:138,high:142,range:[136,145]},            // 138–142 (half-time feel)
+  hiphop:{default:92,low:80,high:100,range:[75,105]},                // 80–100 (boom bap ~88–94)
+  boomBap:{default:90,low:84,high:94,range:[82,96]},                 // classic boom bap 84–94
+  trap:{default:142,low:134,high:148,range:[130,150]},               // often double-time notation (71 bpm *2)
+  lofiBeats:{default:82,low:70,high:88,range:[65,90]},               // chillhop 70–90
+  ambient:{default:70,low:55,high:80,range:[50,85]},                 // very flexible
+  orchestral:{default:120,low:90,high:130,range:[70,140]},           // cinematic varies widely
+  cinematic:{default:110,low:90,high:130,range:[80,140]},            // trailer build variety
+  pop:{default:118,low:100,high:124,range:[96,126]},                 // mainstream pop 100–124
 };
 
 interface WizardState {

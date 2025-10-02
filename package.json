@@ -8,29 +8,32 @@
   "scripts": {
     "dev": "vite",
     "dev:host": "vite --host 0.0.0.0",
-  "dev:strict": "vite --host 0.0.0.0 --port 5173 --strictPort",
-  "dev:codespaces": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:strict": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "dev:codespaces": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview",
-    "health": "curl -I -s http://localhost:5173 | head -n 1 || exit 1"
-    ,"preview:host": "vite preview --host 0.0.0.0 --port 5173",
+    "health": "curl -I -s http://localhost:5173 | head -n 1 || exit 1",
+    "preview:host": "vite preview --host 0.0.0.0 --port 5173",
     "start": "npm run preview:host",
     "dev:watch": "while true; do echo '[DEV RESTART]' && vite --host 0.0.0.0; echo 'Exited with $?'; sleep 2; done",
-    "health:loop": "while true; do date '+%H:%M:%S' ; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173 || true; sleep 5; done"
+    "health:loop": "while true; do date '+%H:%M:%S' ; curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5173 || true; sleep 5; done",
+    "validate:taxonomy": "node scripts/validate-taxonomy.js"
   },
   "dependencies": {
+    "framer-motion": "^10.16.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "framer-motion": "^10.16.3"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "typescript": "^5.4.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
-    "vite": "^5.0.0",
     "@vitejs/plugin-react": "^4.0.0",
-    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.0",
+    "esbuild-register": "^3.6.0",
     "postcss": "^8.4.0",
-    "autoprefixer": "^10.4.0"
+    "tailwindcss": "^3.3.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0",
+    "vite": "^5.0.0"
   }
 }
