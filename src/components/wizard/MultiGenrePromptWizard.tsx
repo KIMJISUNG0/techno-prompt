@@ -25,6 +25,14 @@ function colorTokenToCss(token:string){ return COLOR_MAP[token] || '#22d3ee'; }
 
 type WizardStep = 'genre' | 'bpmTime' | 'build';
 
+// Alias / fallback mapping: leaf subgenres that don't yet have a dedicated pack → base genre
+// (Prevents undefined pack lookup causing stuck loading overlay.)
+const GENRE_ALIASES: Record<string, GenreId> = {
+  boomBap: 'hiphop',
+  trap: 'hiphop',
+  lofiBeats: 'hiphop',
+};
+
 const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;range:[number,number]}> = {
   techno:{default:130,low:124,high:134,range:[122,136]},
   house:{default:125,low:120,high:128,range:[118,128]},
@@ -55,8 +63,15 @@ export default function MultiGenrePromptWizard() {
   useEffect(()=> {
     const arr: string[]|undefined = (window as any).__pickedGenres;
     if (arr && arr.length>=1 && state.step==='genre') {
-      const first = arr[0] as GenreId;
-      setState(s=> ({...s, genre:first, genres:arr as GenreId[], step:'bpmTime'}));
+      // Canonicalize any unknown subgenre IDs via alias mapping.
+      const canonical = arr.map(id=> {
+        const direct = GENRE_PACKS.find(p=> p.id===id);
+        if (direct) return id as GenreId;
+        const alias = GENRE_ALIASES[id];
+        return (alias || id) as GenreId; // id passes through (may remain unknown but handled later)
+      });
+      const first = canonical[0] as GenreId;
+      setState(s=> ({...s, genre:first, genres:canonical as GenreId[], step:'bpmTime'}));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[]);
@@ -77,16 +92,42 @@ export default function MultiGenrePromptWizard() {
     if(!state.genre) return;
     setLoading(true);
     setTimeout(()=>{ // mock async
-      let schema: MergedSchema;
-      if (state.genres && state.genres.length>1) {
-        const packs = state.genres.map(id=> GENRE_PACKS.find(p=> p.id===id)).filter(Boolean) as any[];
-        schema = mergeMultiple(universalPack, packs);
-      } else {
-        const genrePack = GENRE_PACKS.find(p=> p.id===state.genre)!;
-        schema = mergePacks(universalPack, genrePack);
+      try {
+        let schema: MergedSchema;
+        if (state.genres && state.genres.length>1) {
+          const packs = state.genres
+            .map(id=> GENRE_PACKS.find(p=> p.id===id) || GENRE_PACKS.find(p=> p.id===GENRE_ALIASES[id]))
+            .filter(Boolean) as any[];
+          // If after alias resolution we have no packs, fallback to universal only
+          if (packs.length===0) {
+            schema = { groups:[...universalPack.groups], options:[...universalPack.options], subopts:{...universalPack.subopts}, order: universalPack.groups.map(g=> g.id) };
+          } else if (packs.length===1) {
+            schema = mergePacks(universalPack, packs[0]);
+          } else {
+            schema = mergeMultiple(universalPack, packs);
+          }
+        } else {
+          const genreId = state.genre as string; // already guarded above
+          const direct = GENRE_PACKS.find(p=> p.id===genreId);
+          const aliasKey = !direct ? GENRE_ALIASES[genreId] : undefined;
+          const aliasPack = aliasKey ? GENRE_PACKS.find(p=> p.id===aliasKey) : undefined;
+          if (direct || aliasPack) {
+            schema = mergePacks(universalPack, (direct || aliasPack)!);
+          } else {
+            // Fallback: universal-only placeholder schema for unknown genre
+            console.warn('[wizard] Unknown genre id', genreId, 'falling back to universal pack only.');
+            schema = { groups:[...universalPack.groups], options:[...universalPack.options], subopts:{...universalPack.subopts}, order: universalPack.groups.map(g=> g.id) };
+          }
+        }
+        setState(s=> ({...s, ...values, schema, step:'build'}));
+      } catch (err) {
+        console.error('[wizard] Failed to build schema', err);
+        alert('Failed to build schema for this genre. Using base template.');
+        const schema: MergedSchema = { groups:[...universalPack.groups], options:[...universalPack.options], subopts:{...universalPack.subopts}, order: universalPack.groups.map(g=> g.id) };
+        setState(s=> ({...s, ...values, schema, step:'build'}));
+      } finally {
+        setLoading(false);
       }
-      setState(s=> ({...s, ...values, schema, step:'build'}));
-      setLoading(false);
     }, 60);
   }
   function backTo(step: WizardStep){ setState(s=> ({...s, step})); }
@@ -123,7 +164,15 @@ export default function MultiGenrePromptWizard() {
         </div>
       </header>
       {state.step==='genre' && <GenreStep onSelect={selectGenre} />}
-  {state.step==='bpmTime' && state.genre && <BpmTimeStep genre={state.genre} presets={GENRE_BPM_PRESETS[state.genre] || GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('genre')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />}
+  {state.step==='bpmTime' && state.genre && <BpmTimeStep
+    genre={state.genre}
+    presets={GENRE_BPM_PRESETS[state.genre] || GENRE_BPM_PRESETS[GENRE_ALIASES[state.genre]] || GENRE_BPM_PRESETS['techno']}
+    onConfirm={confirmBpm}
+    onBack={()=> backTo('genre')}
+    accentBtn={accentBtn}
+    accentGhost={accentGhost}
+    accentPrimary={accentPrimary}
+  />}
   {state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
     </div>
