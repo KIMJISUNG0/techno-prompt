@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { LiveCodingConsole, dispatchLiveCodeSnippet } from '../LiveCodingConsole';
 import { universalPack } from '../../data/multigenre/universal';
 import { GENRE_PACKS } from '../../data/multigenre/genres';
 import { mergePacks, mergeMultiple } from '../../data/multigenre/merge';
@@ -183,7 +184,9 @@ export default function MultiGenrePromptWizard() {
     accentGhost={accentGhost}
     accentPrimary={accentPrimary}
   />}
-  {state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
+      {state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
+      {/* Live coding side panel mount point */}
+      <LiveCodingDock />
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
     </div>
   );
@@ -284,11 +287,19 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
     const found = recProgs.find(p=> p.id===pickedProg);
     return found? `Progression: ${found.roman}`: '';
   },[pickedProg, recProgs]);
+  function insertKick(){ dispatchLiveCodeSnippet(`play("kick", { pattern: "x---x---x---x---" })`); }
+  function insertHat(){ dispatchLiveCodeSnippet(`play("hat", { pattern: "-x-x-x-x-x-x-x-x", gain:0.35 })`); }
+  function insertBass(){ dispatchLiveCodeSnippet(`play("bass", { pattern: "x---x---x---x---", notes:[36,36,43,31] })`); }
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter && state.meter!=='4/4' ? ' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div>
         <button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button>
+      </div>
+      <div className="flex gap-2 flex-wrap text-[10px]">
+        <button onClick={insertKick} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Kick to Live</button>
+        <button onClick={insertHat} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Hat to Live</button>
+        <button onClick={insertBass} className="px-2 py-1 rounded border border-slate-600 hover:border-cyan-400 hover:text-cyan-200">→ Bass to Live</button>
       </div>
       <div className="flex gap-3 text-[11px]">
         <button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button>
@@ -333,5 +344,22 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
         </div>
       </div>
     </div>
+  );
+}
+
+// Dock container that anchors console as a slide-over panel
+function LiveCodingDock(){
+  const [open,setOpen] = useState(false);
+  return (
+    <>
+      <button onClick={()=> setOpen(o=> !o)} className="fixed bottom-4 right-4 z-40 px-3 py-2 rounded bg-cyan-600/30 backdrop-blur border border-cyan-400/50 text-[11px] hover:bg-cyan-600/40">
+        {open? 'Close Live Coding':'Live Coding'}
+      </button>
+      {open && (
+        <div className="fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg">
+          <LiveCodingConsole onClose={()=> setOpen(false)} />
+        </div>
+      )}
+    </>
   );
 }
