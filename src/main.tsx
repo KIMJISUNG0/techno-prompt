@@ -6,6 +6,7 @@ import MultiGenrePromptWizard from "./components/wizard/MultiGenrePromptWizard";
 import StackComposerWizard from './components/wizard/StackComposerWizard';
 import GenrePortal from './components/portal/GenrePortal';
 import TestPlayground from './components/TestPlayground';
+import './live/techno140Demo'; // registers techno140 patch
 
 // Pre-parse hash for shareable genre selection (#g=genre1+genre2)
 (()=> {

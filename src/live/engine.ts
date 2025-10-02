@@ -43,6 +43,14 @@ interface TrackState {
 class LiveEngine {
   private ctx: AudioContext | null = null;
   private workletReady: Promise<boolean> | null = null;
+  // Performance profiling accumulators
+  private perf = {
+    scheduleCount: 0,
+    totalLead: 0,
+    maxLead: 0,
+    minLead: Infinity,
+    lateCount: 0
+  };
   private useHQ = false; // toggled when worklet loads
   private wlPort: MessagePort | null = null;
   private wlIdCounter = 0;
@@ -230,6 +238,16 @@ class LiveEngine {
       }
       ts.stepIndex++;
     });
+    // perf: measure lead time vs current audio time
+    if (this.ctx) {
+      const now = this.ctx.currentTime;
+      const lead = time - now;
+      this.perf.scheduleCount++;
+      this.perf.totalLead += lead;
+      if (lead > this.perf.maxLead) this.perf.maxLead = lead;
+      if (lead < this.perf.minLead) this.perf.minLead = lead;
+      if (lead < 0) this.perf.lateCount++;
+    }
   }
 
   private swingOffset(stepIndex:number){
@@ -670,6 +688,21 @@ class LiveEngine {
   }
 
   // (global sidechain removed in favor of per-track duck)
+
+  getPerfStats(){
+    const { scheduleCount, totalLead, maxLead, minLead, lateCount } = this.perf;
+    return {
+      scheduleCount,
+      avgLeadMs: scheduleCount ? (totalLead / scheduleCount) * 1000 : 0,
+      maxLeadMs: maxLead * 1000,
+      minLeadMs: (minLead===Infinity?0:minLead) * 1000,
+      lateCount
+    };
+  }
+
+  resetPerf(){
+    this.perf = { scheduleCount:0, totalLead:0, maxLead:0, minLead:Infinity, lateCount:0 };
+  }
 }
 
 // Singleton instance for app
@@ -698,6 +731,8 @@ export function getLiveAPI() {
     tonePatternStop: (id:string) => tonePatternStop(id),
     tonePatternStopAll: () => tonePatternStopAll(),
     getAnalyser: () => (liveEngine as any).getAnalyserData?.(),
+    getPerf: () => (liveEngine as any).getPerfStats?.(),
+    resetPerf: () => (liveEngine as any).resetPerf?.(),
     log: (...args: any[]) => console.warn('[live]', ...args)
   };
 }
