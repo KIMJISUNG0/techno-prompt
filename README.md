@@ -305,3 +305,42 @@ RUN printf 'try_files $uri /index.html;\n' > /etc/nginx/conf.d/default.conf
 
 ## License
 MIT (필요 시 수정 가능)
+
+## Stack Composer (Layer-by-Layer Prompt Flow)
+드럼 → 베이스 → 코드 → 리드 → FX → Groove → Mix → Master → Review 순서로 프로덕션 워크플로를 모사하는 단계형 프롬프트 빌더.
+
+### 핵심 개념
+- Reducer 상태: `layers[]` (각 레이어: role, descriptors[], pattern) + `meta` (bpm, swing, fx/mix/master 요약)
+- Draft 편집: 특정 role 시작 → descriptors & pattern 편집 → Commit 시 `layers`에 확정
+- 패턴 입력: 현재는 텍스트 기반 (차후 16-step grid / velocity UI 예정)
+- 실시간 미리듣기: 레이어 커밋 시 `liveEngine.play(id,{ pattern, type:role })` 자동 업데이트
+- Swing / FX / Mix / Master 슬라이더 & 노트는 최종 Prompt에 요약 라인으로 삽입
+
+### Prompt 예시 (요약)
+```
+128 BPM 4/4
+DRUMS: punchy busy, tight sparse, snappy sparse
+BASS: growl legato
+CHORDS: lush legato
+LEAD: bright staccato
+GROOVE: swing 12%
+FX: subtle long-tail shimmer, tight slapback lead
+MIX: tight low-end, airy highs
+MASTER: transparent glue, gentle high shelf
+```
+
+### 향후 확장
+- Pattern grid + accent/hold 비주얼 에디터
+- Layer compare & mute/solo
+- Export: JSON (state) + Plain Prompt + 패턴 개별 블록
+- Diff view (최근 스냅샷 vs 현재)
+
+## 자동 배포 (GitHub → Render)
+메인 브랜치에 push 시 GitHub Actions 가 build 검증 후 Render Static Site 가 변경 감지하여 재빌드합니다.
+
+### 파이프라인 개요
+1. `push` → GitHub Actions: taxonomy validate + build
+2. 성공 시 Render Webhook(연결 시) 또는 Render 가 Repo 변경 polling → deploy
+3. `render.yaml` 로 build/publish 경로 (`dist`) 설정
+
+수동 트리거가 필요 없으므로 관리 부담 최소화. 추가로 lint/typecheck 를 Actions 워크플로에 확장할 수 있습니다.

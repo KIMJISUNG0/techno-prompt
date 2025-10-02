@@ -36,7 +36,7 @@ export default function TestPlayground(){
       raf = requestAnimationFrame(frame);
       if(!ctx || !api?.getAnalyser) return;
       const a:AnalyserPayload = api.getAnalyser();
-      const { freq, time, level } = a;
+  const { freq, time /* level */ } = a; // level currently unused (reserved for future meter UI)
       const w = ctx.canvas.width, h = ctx.canvas.height;
       ctx.clearRect(0,0,w,h);
       // freq bars

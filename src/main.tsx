@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import TechnoPromptGenerator from "./components/TechnoPromptGenerator";
 import MultiGenrePromptWizard from "./components/wizard/MultiGenrePromptWizard";
+import StackComposerWizard from './components/wizard/StackComposerWizard';
 import GenrePortal from './components/portal/GenrePortal';
 import TestPlayground from './components/TestPlayground';
 
@@ -34,7 +35,7 @@ function useThemeMode() {
     }
   });
   React.useEffect(() => {
-    try { localStorage.setItem('app-theme', mode); } catch {}
+  try { localStorage.setItem('app-theme', mode); } catch {/* ignore persist error */}
     document.documentElement.setAttribute('data-theme', mode);
   }, [mode]);
   const toggle = React.useCallback(() => setMode(m => m==='dark'?'light':'dark'), []);
@@ -44,6 +45,7 @@ function useThemeMode() {
 function RootChooser() {
   const hash = window.location.hash;
   if (hash.includes('live-test')) return <TestPlayground />;
+  if (hash.includes('stack')) return <StackComposerWizard />; // experimental step-by-step layer composer
   // Treat #composer as alias of #wizard (no difference in component for now)
   const [picked, setPicked] = React.useState<string[]|undefined>((window as any).__pickedGenres);
   (window as any).resetGenre = () => setPicked(undefined);

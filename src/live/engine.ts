@@ -236,7 +236,7 @@ class LiveEngine {
           window.dispatchEvent(new CustomEvent('liveaudio.hit', { detail }));
         }, delayMs);
       }
-    } catch {}
+  } catch {/* swallow dispatch timing errors */}
   }
 
   private inferRole(id: string): string {
@@ -431,10 +431,10 @@ class LiveEngine {
     const d = opts.env?.decay ?? 0.35;
     const s = opts.env?.sustain ?? 0.4;
     const r = opts.env?.release ?? 0.6;
-    partials.forEach((p,i)=> {
+    partials.forEach((p,_i)=> {
       const o = ctx.createOscillator(); o.type='sine';
       o.frequency.setValueAtTime(base*p, time);
-      const g = ctx.createGain(); g.gain.value = (1/partials.length) * (1/(i+1));
+      const g = ctx.createGain(); g.gain.value = (1/partials.length) * (1/(_i+1));
       o.connect(g).connect(out); o.start(time); o.stop(time+a+d+r+0.4);
     });
     out.gain.setValueAtTime(0,time);
@@ -447,7 +447,7 @@ class LiveEngine {
     const ctx=this.ctx!; const base=this.noteToFreq(note + (opts.pitchOffset||0));
     const harmonics=[1,2,3]; const out=ctx.createGain(); out.gain.value=0; out.connect(this.masterGain!);
     const a=opts.env?.attack ?? 0.02; const r=opts.env?.release ?? 0.9; const s=opts.env?.sustain ?? 0.95; const d=opts.env?.decay ?? 0.15;
-    harmonics.forEach((h,i)=> { const o=ctx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(base*h,time); const g=ctx.createGain(); g.gain.value=1/harmonics.length; o.connect(g).connect(out); o.start(time); o.stop(time+a+d+r+1.2); });
+  harmonics.forEach((h,_i)=> { const o=ctx.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(base*h,time); const g=ctx.createGain(); g.gain.value=1/harmonics.length; o.connect(g).connect(out); o.start(time); o.stop(time+a+d+r+1.2); });
     out.gain.setValueAtTime(0,time); out.gain.linearRampToValueAtTime((opts.gain ?? 0.5)*vel,time+a); out.gain.linearRampToValueAtTime((opts.gain ?? 0.5)*vel*s,time+a+d); out.gain.linearRampToValueAtTime(0.0001,time+a+d+r);
   }
 
@@ -463,9 +463,9 @@ class LiveEngine {
 
   private playClap(time:number, opts:PlayOptions, vel:number){
     const ctx=this.ctx!; const hits=[0,0.012,0.028,0.06];
-    hits.forEach((off,i)=> {
+    hits.forEach((off,_i)=> {
       const buf=ctx.createBuffer(1, ctx.sampleRate*0.12, ctx.sampleRate); const data=buf.getChannelData(0); for(let j=0;j<data.length;j++) data[j]=(Math.random()*2-1)*Math.pow(1-j/data.length,2.5);
-      const src=ctx.createBufferSource(); src.buffer=buf; const g=ctx.createGain(); const scale=(opts.gain??0.7)*vel * (i===0?1:0.7);
+      const src=ctx.createBufferSource(); src.buffer=buf; const g=ctx.createGain(); const scale=(opts.gain??0.7)*vel * (_i===0?1:0.7);
       g.gain.setValueAtTime(scale, time+off); g.gain.exponentialRampToValueAtTime(0.0001, time+off+0.13);
       const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=1800; src.connect(hp).connect(g).connect(this.masterGain!); src.start(time+off);
     });

@@ -57,7 +57,7 @@ function buildFXChain(t:any, inst:any, fx:FXSpec|FXSpec[]){
             custom.toDestination();
             node = custom;
           }
-        } catch(err){ console.warn('[toneBridge] custom FX build failed', err); }
+  } catch(err){ console.warn('[toneBridge] custom FX build failed', err); }
       }
     }
   }
@@ -150,7 +150,7 @@ export async function toneStop(id: string){
   const rec = active[id];
   if (!rec) return;
   const inst = rec.inst;
-  try { if (inst.dispose) inst.dispose(); else if (inst.releaseAll) inst.releaseAll(); } catch {}
+  try { if (inst.dispose) inst.dispose(); else if (inst.releaseAll) inst.releaseAll(); } catch { /* ignore dispose error */ }
   delete active[id];
 }
 
@@ -189,13 +189,16 @@ function parsePattern(pat:string){
     const ch = src[i];
     if (ch === '.' || ch==='-'){ tokens.push({ type:'rest' }); i++; continue; }
     if (ch === '_'){
-      if (lastNoteIndex>=0) tokens[lastNoteIndex].hold = (tokens[lastNoteIndex].hold||0)+1;
+      if (lastNoteIndex>=0) {
+        // extend previous note by one step; consecutive '_' accumulate
+        tokens[lastNoteIndex].hold = (tokens[lastNoteIndex].hold||0)+1;
+      }
       i++; continue;
     }
     noteRegex.lastIndex = i;
     const m = noteRegex.exec(src);
     if (m){
-      let note = m[0];
+  const note = m[0];
       i = noteRegex.lastIndex;
       let accent = 1;
       if (src[i]==='!'){ accent = 1.2; i++; }
@@ -225,7 +228,7 @@ export async function tonePatternPlay(id:string, pattern:string, opts?:{ type?:s
   const runtime: PatternRuntime = { id, pattern, synthType: opts?.type||'synth', baseVelocity: opts?.velocity??0.9, events: tokens };
   patternMap.set(id, runtime);
   // schedule repeat
-  const loopId = t.Transport.scheduleRepeat((time)=> {
+  const loopId = t.Transport.scheduleRepeat((_time)=> {
     let stepIndex = 0;
     for (const ev of runtime.events){
       if (ev.type==='rest'){ stepIndex++; continue; }
@@ -239,7 +242,7 @@ export async function tonePatternPlay(id:string, pattern:string, opts?:{ type?:s
         else if (durSteps > 1) toneDur = `${durSteps}*${step}`; // fallback expression (Tone supports eval)
         try {
           tonePlay('pat:'+id+':'+stepIndex, { type: runtime.synthType as any, notes:[ev.note], duration:toneDur, velocity:vel, fx: opts?.fx });
-        } catch(err){ console.warn('[tonePattern] play error', err); }
+  } catch(err){ console.warn('[tonePattern] play error', err); }
         stepIndex += durSteps;
       }
     }
@@ -250,7 +253,7 @@ export async function tonePatternPlay(id:string, pattern:string, opts?:{ type?:s
 export function tonePatternStop(id:string){
   const r = patternMap.get(id); if (!r) return;
   patternMap.delete(id);
-  if (r.loopId != null && tone){ try { tone.Transport.clear(r.loopId); } catch {} }
+  if (r.loopId != null && tone){ try { tone.Transport.clear(r.loopId); } catch {/* ignore clear error */} }
 }
 
 export function tonePatternStopAll(){
@@ -263,7 +266,7 @@ function scheduleSweep(){
     const now = Date.now();
     for (const [id, rec] of Object.entries(active)){
       if (now - rec.lastUse > TTL_MS){
-        try { if (rec.inst.dispose) rec.inst.dispose(); } catch {}
+  try { if (rec.inst.dispose) rec.inst.dispose(); } catch {/* ignore dispose error */}
         delete active[id];
       }
     }

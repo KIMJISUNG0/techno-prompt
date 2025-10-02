@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { IconSettings, IconSearch, IconDocs, IconTheme, IconSun, IconMoon } from './icons/Icons';
+import { IconSettings, IconDocs, IconSun, IconMoon } from './icons/Icons';
 import type React from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GROUPS, OPTIONS, SUBOPTS, ORDER, PARAMS_LOOKUP, type GroupId } from "../data/taxonomy";

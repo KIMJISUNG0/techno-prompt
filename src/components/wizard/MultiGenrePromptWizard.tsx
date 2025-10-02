@@ -164,15 +164,10 @@ export default function MultiGenrePromptWizard() {
       }: undefined}
     >
       <header className="mb-8 flex items-center justify-between">
-  <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT COMPOSER{secondTheme? ' • HYBRID':''}</h1>
+        <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>MULTI GENRE PROMPT COMPOSER{secondTheme? ' • HYBRID':''}</h1>
         <div className="flex gap-2 items-center">
-          {/* Header Live Coding Open Button (bubble style) */}
-          <BubbleButton onClick={()=> window.dispatchEvent(new CustomEvent('livecode.requestOpen'))} label="Live Coding" primary />
           {state.step!=='genre' && (
             <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>
-          )}
-          {state.step!=='genre' && (
-            <button onClick={()=> (window as any).resetGenre?.()} className={`${accentBtn} ${accentGhost}`}>Genres</button>
           )}
         </div>
       </header>
@@ -349,6 +344,7 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
 // Dock container that anchors console as a slide-over panel
 function LiveCodingDock(){
   const [open,setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
   useEffect(()=> {
     function onReq(){ setOpen(true); }
     window.addEventListener('livecode.requestOpen', onReq as any);
@@ -361,42 +357,33 @@ function LiveCodingDock(){
     window.addEventListener('keydown', onKey);
     return ()=> { window.removeEventListener('livecode.requestOpen', onReq as any); window.removeEventListener('keydown', onKey); };
   },[]);
+  // Tab visible width when closed
   return (
     <>
-      <button onClick={()=> setOpen(o=> !o)} className="fixed bottom-4 right-4 z-40 bubble-btn" data-variant="primary">
-        {open? 'Close Live Coding':'Live Coding'}
-      </button>
-      {open && (
-        <div className="fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg">
-          <LiveCodingConsole onClose={()=> setOpen(false)} />
+      {/* Slide tab trigger */}
+      <div
+        className={`fixed bottom-6 right-0 z-40 group ${open? 'translate-x-0':'translate-x-[calc(100%-52px)]'} transition-transform duration-300`}
+        onMouseEnter={()=> setHover(true)}
+        onMouseLeave={()=> setHover(false)}
+      >
+        <div className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-l-xl shadow-lg border border-r-0 backdrop-blur-md cursor-pointer select-none
+          ${open? 'bg-cyan-600/30 border-cyan-500/40':'bg-slate-800/60 border-slate-600/40 hover:bg-slate-700/70'}
+        `} onClick={()=> setOpen(o=> !o)}>
+          <span className="text-[11px] tracking-wide text-slate-200">{open? 'LIVE CODING':'LIVE'}</span>
+          {/* Close button appears only when open or hovered inside expanded state */}
+          <button
+            onClick={(e)=> { e.stopPropagation(); setOpen(false);} }
+            className={`text-slate-400 hover:text-cyan-200 text-xs px-1 rounded transition-opacity ${open || hover? 'opacity-100':'opacity-0'} focus:opacity-100`}
+            aria-label="Close live coding console"
+          >×</button>
         </div>
-      )}
+      </div>
+      {/* Panel */}
+      <div className={`fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg transition-transform duration-300 ${open? 'translate-x-0':'translate-x-full'}`}>
+        {open && <LiveCodingConsole onClose={()=> setOpen(false)} />}
+      </div>
     </>
   );
 }
 
-// Reusable BubbleButton component (pointer tracking + ripple)
-function BubbleButton({ label, onClick, primary }: { label:string; onClick:()=>void; primary?:boolean }){
-  const ref = React.useRef<HTMLButtonElement|null>(null);
-  useEffect(()=> {
-    const el = ref.current; if(!el) return;
-    function move(e:PointerEvent){
-      if(!el) return;
-      const r = el.getBoundingClientRect();
-      const x = (e.clientX - r.left)/r.width*100; const y = (e.clientY - r.top)/r.height*100;
-      el.style.setProperty('--mx', x+'%');
-      el.style.setProperty('--my', y+'%');
-    }
-    function click(){
-      if(!el) return;
-      el.classList.remove('ripple-anim');
-      void el.offsetWidth; // force reflow
-      el.classList.add('ripple-anim');
-      setTimeout(()=> { if(el) el.classList.remove('ripple-anim'); }, 650);
-    }
-    el.addEventListener('pointermove', move);
-    el.addEventListener('click', click);
-    return ()=> { if(el){ el.removeEventListener('pointermove', move); el.removeEventListener('click', click);} };
-  },[]);
-  return <button ref={ref} data-variant={primary? 'primary':undefined} onClick={onClick} className="bubble-btn">{label}</button>;
-}
+// (Removed BubbleButton: header Live Coding trigger deprecated in favor of unified slide tab)

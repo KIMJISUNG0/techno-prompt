@@ -41,7 +41,8 @@ export default function AudioViz({ className="", bars=48, showWave=true }: { cla
         requestAnimationFrame(frame); return;
       }
       lastRef.current = ts;
-      const api:any = (window as any).liveAPICache || ((window as any).liveAPI = (window as any).liveAPI || null);
+  // legacy: retained for potential future API caching; currently unused
+  const _api:any = (window as any).liveAPICache || ((window as any).liveAPI = (window as any).liveAPI || null);
       let payload: AnalyserPayload | null = null;
       try {
         // attempt cached access route: runLiveCode builds getLiveAPI each time; we expose via side-channel if needed.
@@ -50,7 +51,7 @@ export default function AudioViz({ className="", bars=48, showWave=true }: { cla
         } else if ((window as any).getLiveAPI) {
           payload = (window as any).getLiveAPI().getAnalyser?.();
         }
-      } catch {}
+  } catch {/* ignore analyser access errors */}
       if (payload && canvas && ctx) {
         const data = payload.freq;
         ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -115,7 +116,7 @@ export default function AudioViz({ className="", bars=48, showWave=true }: { cla
       requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
-    const onHit = (e:Event) => {
+    const onHit = (_e:Event) => {
       hitFlashRef.current = 1;
     };
     window.addEventListener('liveaudio.hit', onHit as any);
