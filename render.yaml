@@ -6,7 +6,7 @@ services:
   - type: static_site
     name: techno-prompt
     env: static
-    buildCommand: npm install && npm run build
+  buildCommand: bash ./render-build.sh
     publishPath: dist
     pullRequestPreviewsEnabled: true
     # Node 버전 명시 (Render static site 빌드 환경)
