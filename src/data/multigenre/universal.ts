@@ -9,6 +9,9 @@ export const universalPack: UniversalPack = {
     g('groove','Groove / Timing'),
     g('bass','Bass'),
     g('synths','Synths / Melodic'),
+    // New harmonic & texture groups
+    g('pads','Pads / Ambient'),
+    g('progression','Chord Progression', false),
     g('fx','FX & Texture'),
     g('processing','Processing'),
     g('mix','Mix'),
@@ -59,6 +62,12 @@ export const universalPack: UniversalPack = {
     o('univ-bass-reese','Reese Bass','detuned reese bass','bass',{family:'reese',tags:['movement','detune']}),
     o('univ-lead-supersaw','Supersaw Lead','wide stacked supersaw lead','synths',{family:'lead',primary:true,tags:['anthemic']}),
     o('univ-pad-shimmer','Shimmer Pad','shimmer airy pad','synths',{family:'pad',tags:['space','air']}),
+  // --- Pads (new group) ---
+  o('univ-pad-warmAnalog','Warm Analog Pad','warm analog pad layer','pads',{family:'pad',primary:true,tags:['pad','warm']}),
+  o('univ-pad-evolving','Evolving Pad','slow evolving pad movement','pads',{family:'pad',tags:['evolving','movement']}),
+  o('univ-pad-darkDrone','Dark Drone Pad','dark low drone pad','pads',{family:'pad',tags:['dark','drone']}),
+  o('univ-pad-airy','Airy Glass Pad','airy glassy pad texture','pads',{family:'pad',tags:['air','shimmer']}),
+  o('univ-pad-analogStrings','Analog String Pad','analog string ensemble pad','pads',{family:'pad',tags:['ensemble']}),
 
     // --- FX (Reverb Families) ---
     o('univ-fx-rev-plate','Plate Reverb','dense bright plate reverb','fx',{family:'reverb',primary:true,tags:['space','fx']}),
@@ -124,6 +133,13 @@ export const universalPack: UniversalPack = {
   o('univ-mix-depthSpace','Depth Space','depth layering & contrast','mix',{family:'depth',tags:['stage']}),
   o('univ-mix-glueParallel','Parallel Glue','parallel bus glue blend','mix',{family:'parallel',tags:['glue']}),
   o('univ-mix-subFocus','Sub Focus','focused sub energy','mix',{family:'low',tags:['sub','low']}),
+
+  // --- Progression (harmonic direction) ---
+  o('univ-prog-minorLoop','Minor Loop i-vi-vii','minor loop progression','progression',{family:'progression',primary:true,tags:['harmony','minor']}),
+  o('univ-prog-modalShift','Modal i-bVII-VI','modal interchange drive','progression',{family:'progression',tags:['modal','borrowed']}),
+  o('univ-prog-suspense','Suspended Tension','sustained sus2/sus4 tension','progression',{family:'progression',tags:['tension']}),
+  o('univ-prog-pivotMod','Pivot Modulation','pivot chord modulation hint','progression',{family:'progression',tags:['modulation']}),
+  o('univ-prog-borrowed','Borrowed bVI Color','borrowed bVI color chord','progression',{family:'progression',tags:['borrowed','color']}),
 
   // --- Mastering (공용) ---
   o('univ-master-limiter','Master Limiter','transparent peak limiting','mastering',{family:'limiter',primary:true,tags:['ceiling']}),

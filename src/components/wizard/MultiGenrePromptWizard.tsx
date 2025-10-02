@@ -266,6 +266,14 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
     return parts.join(' | ');
   }
   const suffix = buildMelodySuffix();
+  // Compose genre description (supports hybrid)
+  const genreDescriptions = (state.genres|| (state.genre? [state.genre]: []))
+    .map(id=> {
+      const pack = GENRE_PACKS.find(p=> p.id===id);
+      return pack? `${pack.label}: ${pack.description || ''}`.trim(): null;
+    })
+    .filter(Boolean)
+    .join(' | ');
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -282,7 +290,13 @@ function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {state.schema && (
-            <SchemaPromptBuilder schema={state.schema} bpm={state.bpm} meter={state.meter} swing={state.swing} extraSuffix={suffix} />
+            <SchemaPromptBuilder
+              schema={state.schema}
+              bpm={state.bpm}
+              meter={state.meter}
+              swing={state.swing}
+              extraSuffix={[genreDescriptions, suffix].filter(Boolean).join(', ')}
+            />
           )}
         </div>
         <div className="lg:col-span-1 space-y-6">
