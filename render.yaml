@@ -1,0 +1,15 @@
+# Render deployment configuration
+# This file defines a static site for the Vite build output.
+# Docs: https://render.com/docs/static-sites
+
+services:
+  - type: static_site
+    name: techno-prompt
+    env: static
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    pullRequestPreviewsEnabled: true
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
