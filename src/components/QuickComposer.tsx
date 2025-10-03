@@ -5,6 +5,7 @@ import { buildDefaultDraft, serializeDraft, draftSummary, parseDraft } from '../
 import { draftToPatterns } from '../prompt/patternMap';
 import { applySlashCommand } from '../prompt/transforms';
 import { exportPrompt } from '../prompt/promptExport';
+import { analyzeDraftForExpert } from '../prompt/expertHints';
 import { evaluateDraft } from '../prompt/quality';
 
 interface TransformLogEntry {
@@ -36,6 +37,7 @@ export default function QuickComposer() {
   const [micTexture, setMicTexture] = useState(false); // placeholder (no engine glue yet)
   // Variation slots (simple in-memory snapshots)
   const [variations, setVariations] = useState<{ id: string; label: string; serialized: string }[]>([]);
+  const [expertHints, setExpertHints] = useState<ReturnType<typeof analyzeDraftForExpert>|null>(null);
   // Undo/Redo stacks (store serialized snapshots)
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
@@ -62,6 +64,7 @@ export default function QuickComposer() {
     setQuality(evaluateDraft(d));
     setUndoStack([]); setRedoStack([]);
     dispatchPatterns(d);
+    setExpertHints(analyzeDraftForExpert(d));
   }
 
   function applySlash() {
@@ -78,6 +81,7 @@ export default function QuickComposer() {
     setUndoStack(st => [...st, serBefore]);
     setRedoStack([]);
     dispatchPatterns(res.draft);
+    setExpertHints(analyzeDraftForExpert(res.draft));
   }
 
   function resetAll() {
@@ -118,6 +122,7 @@ export default function QuickComposer() {
       setDraft(parsed as any);
       setQuality(evaluateDraft(parsed as any));
       dispatchPatterns(parsed as any);
+      setExpertHints(analyzeDraftForExpert(parsed as any));
     }
   }
 
@@ -328,7 +333,7 @@ export default function QuickComposer() {
             <div className="text-[10px] text-slate-500">Examples: /brighten • /punch • /raise intro_0 drop_2 • /replace find=dark replace=bright</div>
           </div>
 
-          <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-6">
+          <div className="grid xl:grid-cols-4 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Serialized Draft</h3>
@@ -336,7 +341,7 @@ export default function QuickComposer() {
               </div>
               <pre className="text-[10px] leading-relaxed bg-black/50 border border-slate-700 rounded p-2 max-h-72 overflow-auto whitespace-pre-wrap">{serialized}</pre>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 xl:col-span-1">
               <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Transform Log</h3>
               <div className="text-[10px] space-y-1 max-h-72 overflow-auto">
                 {log.map(l => (
@@ -369,6 +374,28 @@ export default function QuickComposer() {
                 </div>
               )}
             </div>
+            {expertHints && (
+              <div className="space-y-2 xl:col-span-1">
+                <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Expert Hints</h3>
+                <div className="text-[10px] space-y-2 max-h-72 overflow-auto border border-slate-700 rounded p-2 bg-slate-900/30">
+                  <div className="text-slate-500">{expertHints.energyImbalance}</div>
+                  {expertHints.missingRoles.length>0 && (
+                    <div><span className="text-slate-400">Missing Roles:</span> {expertHints.missingRoles.join(', ')}</div>
+                  )}
+                  {expertHints.underusedHighEnergy.length>0 && (
+                    <div><span className="text-slate-400">Sparse High-Energy Sections:</span> {expertHints.underusedHighEnergy.join(', ')}</div>
+                  )}
+                  {expertHints.descriptorRepetition.length>0 && (
+                    <div className="text-slate-400">Repetition:
+                      <span className="text-slate-500"> {expertHints.descriptorRepetition.map(r=> r.token+"("+r.count+")").join(', ')}</span>
+                    </div>
+                  )}
+                  <ul className="list-disc ml-4 space-y-1">
+                    {expertHints.suggestions.map((s,i)=> <li key={i} className="text-slate-300">{s}</li>)}
+                  </ul>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Live Prompt Preview</h3>
