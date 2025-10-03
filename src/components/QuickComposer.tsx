@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { IntentInput, clampIntensity } from '../intent/types';
 import { recommendGenres } from '../intent/recommend';
 import { buildDefaultDraft, serializeDraft, draftSummary, parseDraft } from '../prompt/sectionDsl';
+import { draftToPatterns } from '../prompt/patternMap';
 import { applySlashCommand } from '../prompt/transforms';
 import { evaluateDraft } from '../prompt/quality';
 
@@ -57,6 +58,7 @@ export default function QuickComposer() {
     setLog([{ note: 'Initial draft', serialized: ser, ts: Date.now() }]);
     setQuality(evaluateDraft(d));
     setUndoStack([]); setRedoStack([]);
+    dispatchPatterns(d);
   }
 
   function applySlash() {
@@ -72,6 +74,7 @@ export default function QuickComposer() {
     setQuality(evaluateDraft(res.draft));
     setUndoStack(st => [...st, serBefore]);
     setRedoStack([]);
+    dispatchPatterns(res.draft);
   }
 
   function resetAll() {
@@ -94,6 +97,7 @@ export default function QuickComposer() {
     setQuality(evaluateDraft(next as any));
     setUndoStack(st => [...st, before]);
     setRedoStack([]);
+    dispatchPatterns(next);
   }
 
   function saveVariation() {
@@ -110,6 +114,7 @@ export default function QuickComposer() {
     if (parsed) {
       setDraft(parsed as any);
       setQuality(evaluateDraft(parsed as any));
+      dispatchPatterns(parsed as any);
     }
   }
 
@@ -138,6 +143,13 @@ export default function QuickComposer() {
     setSerialized(nextSer);
     const parsed = parseDraft(nextSer);
     if (parsed) { setDraft(parsed as any); setQuality(evaluateDraft(parsed as any)); }
+  }
+
+  function dispatchPatterns(d: any){
+    try {
+      const payload = draftToPatterns(d);
+      window.dispatchEvent(new CustomEvent('draft.patterns.update', { detail: payload }));
+    } catch { /* silent */ }
   }
 
   function exportPatternsForSection(sec: any): string {
