@@ -154,11 +154,16 @@ function LiveCodingDock(){ const [open,setOpen]=useState(false); const [hover,se
 // --- Extended injected overrides (instrument step + prompt aggregation) ---
 // Override DrumSummaryStep to remove clipboard copy (copy only at final summary)
 function DrumSummaryStep({ seq, onNext, onBack }:{ seq:SequentialBuildState; onNext:()=>void; onBack:()=>void }){
-  const line=`DRUM FOUNDATION: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join(' + '):''}`;
+  const lines=[
+    `${t('wizard.drum.kick')}: ${seq.drums.kick||'-'}`,
+    `${t('wizard.drum.hat')}: ${seq.drums.hat||'-'}`,
+    `${t('wizard.drum.snare')}: ${seq.drums.snare||'-'}`,
+    `${t('wizard.drum.extras')}: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
+  ].join('\n');
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.drumSummary')}</h2>
-      <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap">{line}</pre>
+      <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre>
       <div className="flex justify-between text-xs">
         <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
         <button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button>
@@ -197,10 +202,18 @@ function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selecte
 
 // Override final summary to include instruments
 function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){
+  const [compact,setCompact]=useState(false);
+  const drumBlockCompact=[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')+(seq.drums.extras.length? ' + '+seq.drums.extras.join('+'):'');
+  const drumBlockExpanded=[
+    `${t('wizard.drum.kick')}: ${seq.drums.kick||'-'}`,
+    `${t('wizard.drum.hat')}: ${seq.drums.hat||'-'}`,
+    `${t('wizard.drum.snare')}: ${seq.drums.snare||'-'}`,
+    `${t('wizard.drum.extras')}: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
+  ].join('\n');
   const lines=[
     `GENRE: ${seq.mainGenre}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
     seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
-    `DRUMS: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join('+'):''}`,
+    compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
     seq.instruments.length? `INSTRUMENTS: ${seq.instruments.join(', ')}`:'',
     seq.bass?`BASS: ${seq.bass}`:'',
     seq.chords?`CHORDS: ${seq.chords}`:'',
@@ -210,7 +223,10 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
   ].filter(Boolean).join('\n');
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.finalSummary')}</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.finalSummary')}</h2>
+        <button onClick={()=> setCompact(c=>!c)} className="px-2 py-1 text-[10px] rounded border border-slate-600 hover:border-cyan-400 text-slate-400 hover:text-cyan-200">{compact? t('wizard.view.expanded'): t('wizard.view.compact')}</button>
+      </div>
       <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre>
       <div className="flex justify-between text-xs">
         <button onClick={onRestart} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.restart')}</button>
