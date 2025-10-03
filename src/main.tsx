@@ -8,6 +8,7 @@ import TestPlayground from './components/TestPlayground';
 import './live/techno140Demo'; // registers techno140 patch
 const QuickComposer = React.lazy(()=> import('./components/QuickComposer'));
 const ProgressiveComposer = React.lazy(()=> import('./components/ProgressiveComposer'));
+const UnifiedComposer = React.lazy(()=> import('./components/unified/UnifiedComposer'));
 // SimpleComposer removed (deprecated simple mode)
 
 // Pre-parse hash for shareable genre selection (#g=genre1+genre2)
@@ -56,6 +57,7 @@ function RootChooser() {
   if (hash.includes('stack')) return <StackComposerWizard />; // experimental step-by-step layer composer
   if (hash.includes('expert')) return <QuickComposer />; // expert (instrument/structure oriented)
   if (hash.includes('abstract')) return <ProgressiveComposer />; // abstract token-based path
+  if (hash.includes('unified')) return <UnifiedComposer />; // new unified composer scaffold
   if (hash.includes('quick')) return <QuickComposer />; // backward compat alias
   // Simple mode removed
   // Treat #composer as alias of #wizard (no difference in component for now)
@@ -77,6 +79,7 @@ function AppShell() {
       <span className="text-slate-500">Mode:</span>
   <a href="#expert" className="btn">Expert</a>
   <a href="#abstract" className="btn">Abstract</a>
+  <a href="#unified" className="btn">Unified</a>
   <a href="#composer" className="btn">Composer</a>
   <a href="#live-test" className="btn">Live Test</a>
     </div>

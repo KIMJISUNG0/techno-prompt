@@ -80,6 +80,45 @@ export const PROG_CATEGORIES: ProgCategory[] = [
     ],
     nextHints(){ return ['mood']; }
   },
+  // New extended dimension: space / ambience focus
+  {
+    id: 'space', label: 'Space / Ambience', min:0, max:4,
+    tokens: [
+      t('deep reverb tails'), t('short room slap'), t('dub delay feedback'), t('shimmer verb'), t('binaural pans'), t('reverse ambience'), t('vacuum silence drops')
+    ],
+    nextHints(){ return ['mood']; }
+  },
+  // Rhythmic feel / micro‑timing nuance beyond basic tempo
+  {
+    id: 'rhythm', label: 'Rhythmic Nuance', min:0, max:4,
+    tokens: [
+      t('push-pull groove'), t('laid-back hats'), t('triplet fills'), t('syncopated stabs'), t('ghost percussion'), t('accent displacement'), t('micro swing mod')
+    ],
+    nextHints(){ return ['drums','bass']; }
+  },
+  // Vocal / human elements
+  {
+    id: 'vocal', label: 'Vocal / Human', min:0, max:3,
+    tokens: [
+      t('ethereal vocal chops'), t('spoken word texture'), t('vocoded drone'), t('processed chant'), t('breathy phrase'), t('pitch shifted fragment')
+    ],
+    nextHints(){ return ['fx','mix']; }
+  },
+  // Texture additive layer (mic / field / analog)
+  {
+    id: 'texture', label: 'Texture Layers', min:0, max:5,
+    tokens: [
+      t('vinyl crackle loop'), t('tape hiss bed'), t('granular dust'), t('analog noise swell'), t('field recording city'), t('forest ambience'), t('machine hum layer'), t('filtered static pulses')
+    ],
+    nextHints(){ return ['mix','mood']; }
+  },
+  // Mastering / macro finish
+  {
+    id: 'master', label: 'Mastering Intent', min:0, max:3,
+    tokens: [
+      t('club loudness'), t('dynamic headroom'), t('warm glue compression'), t('wide stereo polish'), t('vinyl master color'), t('streaming optimized')
+    ],
+  },
   {
     id: 'mood', label: 'Final Mood Tags', min:1, max:4,
     tokens: [
