@@ -3,6 +3,7 @@ import { IntentInput, clampIntensity } from '../intent/types';
 import { recommendGenres } from '../intent/recommend';
 import { buildDefaultDraft, serializeDraft, draftSummary } from '../prompt/sectionDsl';
 import { applySlashCommand } from '../prompt/transforms';
+import { evaluateDraft } from '../prompt/quality';
 
 interface TransformLogEntry {
   note: string;
@@ -28,6 +29,11 @@ export default function QuickComposer() {
   const [serialized, setSerialized] = useState<string>('');
   const [slashInput, setSlashInput] = useState('');
   const [log, setLog] = useState<TransformLogEntry[]>([]);
+  const [showSectionEditor, setShowSectionEditor] = useState(false);
+  const [quality, setQuality] = useState<ReturnType<typeof evaluateDraft> | null>(null);
+  const [micTexture, setMicTexture] = useState(false); // placeholder (no engine glue yet)
+  // Variation slots (simple in-memory snapshots)
+  const [variations, setVariations] = useState<{ id: string; label: string; serialized: string }[]>([]);
 
   // Build intent object
   const intent: IntentInput = useMemo(() => ({
@@ -46,6 +52,7 @@ export default function QuickComposer() {
     const ser = serializeDraft(d);
     setSerialized(ser);
     setLog([{ note: 'Initial draft', serialized: ser, ts: Date.now() }]);
+    setQuality(evaluateDraft(d));
   }
 
   function applySlash() {
@@ -57,6 +64,7 @@ export default function QuickComposer() {
     setSerialized(ser);
     setLog(l => [...l, { note: res.note, serialized: ser, ts: Date.now() }]);
     setSlashInput('');
+    setQuality(evaluateDraft(res.draft));
   }
 
   function resetAll() {
@@ -64,6 +72,37 @@ export default function QuickComposer() {
     setDraft(null);
     setSerialized('');
     setLog([]);
+    setVariations([]);
+    setQuality(null);
+  }
+
+  function updateSection(idx: number, patch: any) {
+    if (!draft) return;
+    const next: any = { ...draft, sections: draft.sections.map((s,i)=> i===idx? { ...s, ...patch }: s) };
+    setDraft(next as any);
+    const ser = serializeDraft(next as any);
+    setSerialized(ser);
+    setLog(l => [...l, { note: `Manual edit section ${idx}`, serialized: ser, ts: Date.now() }]);
+    setQuality(evaluateDraft(next as any));
+  }
+
+  function saveVariation() {
+    if (!serialized) return;
+    const id = 'v' + (variations.length + 1);
+    setVariations(v => [...v, { id, label: `Var ${v.length + 1}`, serialized }]);
+  }
+
+  function loadVariation(id: string) {
+    const v = variations.find(x => x.id === id);
+    if (!v) return;
+    // For now just replace serialized text (parsing can restore later if needed)
+    setSerialized(v.serialized);
+  }
+
+  function exportStub() {
+    if (!draft) return;
+    const code = `// Exported Pattern Stub (placeholder)\n// Sections: ${draft.sections.length}\n// TODO: map DraftStructure → engine pattern DSL\n`; 
+    navigator.clipboard.writeText(code + serialized);
   }
 
   return (
@@ -75,7 +114,11 @@ export default function QuickComposer() {
         </div>
         <div className="flex gap-2 text-xs">
           <button onClick={resetAll} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Reset</button>
-          {draft && <button onClick={()=> navigator.clipboard.writeText(serialized)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy Draft</button>}
+          {draft && <>
+            <button onClick={()=> navigator.clipboard.writeText(serialized)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy Draft</button>
+            <button onClick={saveVariation} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Save Var</button>
+            <button onClick={exportStub} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Export Stub</button>
+          </>}
         </div>
       </header>
 
@@ -151,7 +194,32 @@ export default function QuickComposer() {
       {draft && (
         <section className="space-y-4">
           <h2 className="text-sm uppercase tracking-widest text-cyan-300">Draft Structure</h2>
-          <div className="text-[11px] text-slate-400">{draftSummary(draft)}</div>
+          <div className="text-[11px] text-slate-400 flex flex-wrap gap-4 items-center">
+            <span>{draftSummary(draft)}</span>
+            <button onClick={()=> setShowSectionEditor(s=> !s)} className="px-2 py-[2px] rounded border border-slate-600 hover:border-cyan-400 text-[10px] text-slate-300">{showSectionEditor? 'Hide Section Editor':'Edit Sections'}</button>
+            <label className="flex items-center gap-1 text-[10px] text-slate-500 cursor-pointer select-none">
+              <input type="checkbox" checked={micTexture} onChange={e=> setMicTexture(e.target.checked)} /> mic texture (placeholder)
+            </label>
+          </div>
+          {showSectionEditor && (
+            <div className="rounded border border-slate-700 p-3 bg-black/30 space-y-3">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500">Section Editor (length / energy)</div>
+              <div className="flex flex-col gap-2">
+                {draft.sections.map((sec,i)=>(
+                  <div key={sec.id} className="flex flex-wrap gap-2 items-center text-[10px]">
+                    <span className="font-mono text-slate-500 w-16">{sec.id}</span>
+                    <span className="w-14">{sec.kind}</span>
+                    <label className="flex items-center gap-1">bars
+                      <input type="number" value={sec.bars} onChange={e=> updateSection(i,{ bars: Math.max(1, Number(e.target.value)||sec.bars) })} className="w-16 bg-slate-900/50 border border-slate-600 rounded px-1 py-[2px]" />
+                    </label>
+                    <label className="flex items-center gap-1">energy
+                      <input type="number" min={1} max={5} value={sec.energy} onChange={e=> updateSection(i,{ energy: Math.min(5, Math.max(1, Number(e.target.value)||sec.energy)) as any })} className="w-14 bg-slate-900/50 border border-slate-600 rounded px-1 py-[2px]" />
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="overflow-x-auto rounded border border-slate-700 bg-black/30">
             <table className="min-w-full text-[11px]">
               <thead className="bg-slate-800/50 text-slate-300">
@@ -211,6 +279,27 @@ export default function QuickComposer() {
                 ))}
                 {log.length === 0 && <div className="text-slate-600">No transforms applied.</div>}
               </div>
+              {quality && (
+                <div className="mt-3 border border-slate-700 rounded p-2 bg-slate-900/30 space-y-1">
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>Quality Score</span>
+                    <span className={quality.score < 70? 'text-amber-300': 'text-emerald-300'}>{quality.score}</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500">Adj {quality.tokenCounts.adjectives} / Unique {quality.tokenCounts.uniqueAdjectives}</div>
+                  <ul className="text-[10px] list-disc ml-4 space-y-1">
+                    {quality.issues.map(i => <li key={i.code} className={i.severity==='warn'? 'text-amber-300':'text-slate-400'}>{i.message}</li>)}
+                    {quality.issues.length===0 && <li className="text-emerald-300">No issues detected.</li>}
+                  </ul>
+                </div>
+              )}
+              {variations.length>0 && (
+                <div className="mt-3 border border-slate-700 rounded p-2 bg-slate-900/30 space-y-1">
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400">Variations</div>
+                  <div className="flex flex-wrap gap-2">
+                    {variations.map(v => <button key={v.id} onClick={()=> loadVariation(v.id)} className="px-2 py-[2px] rounded border border-slate-600 hover:border-cyan-400 text-[10px] text-slate-300">{v.label}</button>)}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </section>
