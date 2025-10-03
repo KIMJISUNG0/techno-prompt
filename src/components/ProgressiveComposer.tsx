@@ -1,5 +1,6 @@
 import React from 'react';
 import { PROG_CATEGORIES, ProgressiveSelections, buildProgressivePrompt, suggestNextCategories } from '../progressive/progressiveCategories';
+import { analyzeAbstract } from '../progressive/abstractHints';
 
 export default function ProgressiveComposer(){
   const [step, setStep] = React.useState(0);
@@ -27,6 +28,7 @@ export default function ProgressiveComposer(){
 
   const prompt = buildProgressivePrompt(sel, mode);
   const nextHints = suggestNextCategories(current.id, sel);
+  const abstractHints = analyzeAbstract(sel, current.id);
 
   return (
     <div className="mt-16 space-y-8">
@@ -63,9 +65,34 @@ export default function ProgressiveComposer(){
           <button disabled={step===categories.length-1} onClick={next} className={`btn ${step===categories.length-1? 'opacity-30 cursor-not-allowed':''}`}>Next</button>
         </div>
       </section>
-      <section className="space-y-2">
-        <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Prompt Preview</h3>
-        <pre className="text-[11px] whitespace-pre-wrap leading-relaxed bg-black/40 rounded border border-slate-700 p-3 max-h-80 overflow-auto">{prompt}</pre>
+      <section className="grid lg:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Prompt Preview</h3>
+          <pre className="text-[11px] whitespace-pre-wrap leading-relaxed bg-black/40 rounded border border-slate-700 p-3 max-h-80 overflow-auto">{prompt}</pre>
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Abstract Suggestions</h3>
+          <div className="text-[10px] bg-black/40 rounded border border-slate-700 p-3 space-y-2 max-h-80 overflow-auto">
+            {abstractHints.unmetMinimum.length>0 && (
+              <div><span className="text-slate-400">Need more picks:</span> {abstractHints.unmetMinimum.join(', ')}</div>
+            )}
+            {abstractHints.diversityWarnings.length>0 && (
+              <div><span className="text-slate-400">Low diversity:</span> {abstractHints.diversityWarnings.join(', ')}</div>
+            )}
+            {abstractHints.overMax.length>0 && (
+              <div><span className="text-amber-300">Over limit:</span> {abstractHints.overMax.join(', ')}</div>
+            )}
+            {abstractHints.nextCategoryPriority.length>0 && (
+              <div><span className="text-slate-400">Next focus:</span> {abstractHints.nextCategoryPriority.join(', ')}</div>
+            )}
+            {abstractHints.tokenSuggestions.length>0 && (
+              <div><span className="text-slate-400">Token ideas:</span> {abstractHints.tokenSuggestions.join(', ')}</div>
+            )}
+            {abstractHints.unmetMinimum.length===0 && abstractHints.tokenSuggestions.length===0 && (
+              <div className="text-slate-500">No pressing suggestions – refine freely.</div>
+            )}
+          </div>
+        </div>
       </section>
     </div>
   );
