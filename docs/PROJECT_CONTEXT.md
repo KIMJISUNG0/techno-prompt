@@ -59,6 +59,17 @@ Chain assembled in `toneBridge` with flexible ordering.
 
 ## 10. Potential Backlog / Next Steps
 - UI Palette Refactor: Replaced multi‑color per‑genre gradients with a unified charcoal/grayscale system to increase visual consistency and reduce chromatic noise. Introduced CSS design tokens (gray scale, accent, focus ring) in `index.css`. All genre themes now map to a neutral gradient while functionality (prompt logic, BPM variant adjustments) remains unchanged.
+ - Live Coding: Added microphone capture API (`enableMic/disableMic/setMicGain/getMicAnalyser`) with UI toggle + level meter in `LiveCodingConsole`. Mic routes through master saturation → compressor → analyser so external input participates in FX chain.
+
+### Live Mic Quick Usage
+```
+// In live coding console code tab
+await enableMic(); // request permission & start
+setMicGain(1.2);
+// Poll analyser
+const a = getMicAnalyser(); // { freq:Uint8Array, time:Uint8Array, level:0..~1 }
+disableMic(); // to stop & release tracks
+```
 
 ## 11. Rehydration Prompt (for new chat)
 Paste the following into a new session to restore context:

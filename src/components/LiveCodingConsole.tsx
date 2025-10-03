@@ -8,6 +8,31 @@ export function LiveCodingConsole({ onClose }:{ onClose?: ()=>void }) {
   const [code, setCode] = useState(`// Live coding playground\nsetBPM(128)\nplay('kick',{ pattern:'x---x---x---x---' })`);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'code'|'help'>('code');
+  // Mic state
+  const [micOn,setMicOn]=useState(false);
+  const [micLevel,setMicLevel]=useState(0);
+  const [micGain,setMicGain]=useState(1);
+
+  // Poll mic level when enabled
+  useEffect(()=>{
+    let raf:number; let mounted=true;
+    function loop(){
+      try {
+        const api:any = (window as any).liveAPI; if (micOn && api?.getMicAnalyser){ const a=api.getMicAnalyser(); if (a?.level!=null) setMicLevel(a.level); }
+      } catch{/* ignore */}
+      if (mounted) raf = requestAnimationFrame(loop);
+    }
+    loop();
+    return ()=> { mounted=false; cancelAnimationFrame(raf); };
+  },[micOn]);
+
+  async function toggleMic(){
+    const api:any = (window as any).liveAPI;
+    if (!api) return;
+    if (!micOn){ const ok = await api.enableMic(); if (ok){ setMicOn(true); pushLog('Mic enabled','info'); } else pushLog('Mic permission denied','error'); }
+    else { api.disableMic(); setMicOn(false); setMicLevel(0); pushLog('Mic disabled','info'); }
+  }
+  function changeMicGain(v:number){ setMicGain(v); const api:any=(window as any).liveAPI; api?.setMicGain?.(v); }
 
   useEffect(()=> {
     function onInsert(e:any){
@@ -32,7 +57,17 @@ export function LiveCodingConsole({ onClose }:{ onClose?: ()=>void }) {
           <button onClick={()=> setActiveTab('code')} className={`px-2 py-1 rounded ${activeTab==='code'? 'bg-cyan-600/30 text-cyan-200':'text-slate-400 hover:text-cyan-200'}`}>Code</button>
           <button onClick={()=> setActiveTab('help')} className={`px-2 py-1 rounded ${activeTab==='help'? 'bg-cyan-600/30 text-cyan-200':'text-slate-400 hover:text-cyan-200'}`}>Help</button>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-3 items-center">
+          <div className="flex items-center gap-2 text-[10px]">
+            <button onClick={toggleMic} className={`px-2 py-1 rounded border text-[10px] ${micOn? 'border-slate-400 text-slate-200 bg-white/10 hover:bg-white/20':'border-slate-600 text-slate-400 hover:border-slate-400'}`}>{micOn? 'Mic On':'Mic Off'}</button>
+            <div className="flex items-center gap-1">
+              <span className="text-slate-500">Gain</span>
+              <input type="range" min={0} max={3} step={0.05} value={micGain} onChange={e=> changeMicGain(parseFloat(e.target.value))} className="accent-slate-400" />
+            </div>
+            <div className="w-14 h-2 bg-slate-800/60 rounded overflow-hidden">
+              <div style={{ width: `${Math.min(100, Math.round(micLevel*140))}%` }} className="h-full bg-slate-300 transition-all" />
+            </div>
+          </div>
           <button onClick={run} className="px-3 py-1.5 rounded bg-emerald-600/30 border border-emerald-400/40 text-[11px] hover:bg-emerald-600/40">Run</button>
           <button onClick={stopAll} className="px-3 py-1.5 rounded bg-rose-600/20 border border-rose-400/40 text-[11px] hover:bg-rose-600/30">Stop</button>
           {onClose && <button onClick={onClose} className="px-2 text-slate-400 hover:text-cyan-200 text-[11px]">×</button>}

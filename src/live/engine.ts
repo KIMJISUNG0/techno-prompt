@@ -102,6 +102,12 @@ class LiveEngine {
   private loudnessSamples = 0;
   private momentaryLufs = -Infinity;
   private integratedLufs = -Infinity;
+  // Microphone chain
+  private micStream: MediaStream | null = null;
+  private micSource: MediaStreamAudioSourceNode | null = null;
+  private micGain: GainNode | null = null;
+  private micAnalyser: AnalyserNode | null = null;
+  private micEnabled = false;
 
   ensureCtx() {
     if (!this.ctx) {
@@ -110,6 +116,46 @@ class LiveEngine {
       this.initWorklet();
     }
     return this.ctx;
+  }
+
+  // ---------------- Microphone Support -----------------
+  async enableMic(constraints: MediaStreamConstraints = { audio: true }){
+    const ctx = this.ensureCtx();
+    if (this.micEnabled) return true;
+    if (!navigator?.mediaDevices?.getUserMedia) return false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      this.micStream = stream;
+      this.micSource = ctx.createMediaStreamSource(stream);
+      this.micGain = ctx.createGain(); this.micGain.gain.value = 1.0;
+      this.micAnalyser = ctx.createAnalyser(); this.micAnalyser.fftSize = 256; this.micAnalyser.smoothingTimeConstant = 0.75;
+      // Route mic: source -> gain -> masterPreSat (so same processing chain)
+      if (this.masterPreSat) this.micSource.connect(this.micGain).connect(this.masterPreSat);
+      else this.micSource.connect(this.micGain).connect(this.masterGain!);
+      this.micGain.connect(this.micAnalyser);
+      this.micEnabled = true;
+      return true;
+    } catch (err){
+      console.warn('[live-engine] mic enable failed', err);
+      return false;
+    }
+  }
+
+  disableMic(){
+    if (this.micStream){ this.micStream.getTracks().forEach(t=> t.stop()); }
+    this.micStream = null; this.micSource = null; this.micGain = null; this.micAnalyser = null; this.micEnabled = false;
+  }
+  setMicGain(v:number){ if (this.micGain) this.micGain.gain.value = v; }
+  isMicEnabled(){ return this.micEnabled; }
+  getMicAnalyser(){
+    if (!this.micAnalyser) return null;
+    const freq = new Uint8Array(this.micAnalyser.frequencyBinCount);
+    const time = new Uint8Array(this.micAnalyser.fftSize);
+    this.micAnalyser.getByteFrequencyData(freq);
+    this.micAnalyser.getByteTimeDomainData(time);
+    let sum=0; for (let i=0;i<time.length;i++){ const v=(time[i]-128)/128; sum+=v*v; }
+    const rms=Math.sqrt(sum/time.length);
+    return { freq, time, level:rms };
   }
 
   private async initWorklet(){
@@ -881,6 +927,12 @@ export function getLiveAPI() {
     setStereoWidth: (w:number) => { (liveEngine as any).updateStereoWidth?.(w); },
     setLowMono: (freq:number) => { (liveEngine as any).updateLowMono?.(freq); },
     compilePattern: (p:string) => (liveEngine as any).compilePattern?.(p),
+    // Mic controls
+    enableMic: (c?:MediaStreamConstraints)=> (liveEngine as any).enableMic?.(c),
+    disableMic: ()=> (liveEngine as any).disableMic?.(),
+    setMicGain: (v:number)=> (liveEngine as any).setMicGain?.(v),
+    isMicEnabled: ()=> (liveEngine as any).isMicEnabled?.(),
+    getMicAnalyser: ()=> (liveEngine as any).getMicAnalyser?.(),
     log: (...args: any[]) => console.warn('[live]', ...args)
   };
 }
