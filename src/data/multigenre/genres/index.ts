@@ -22,6 +22,7 @@ import { futureGaragePack } from './futuregarage';
 import { reggaetonPack } from './reggaeton';
 import { afrobeatPack } from './afrobeat';
 import { jazzFusionPack } from './jazzfusion';
+import { funkPack, funkDiscoPack, funkFusionPack, funkRockPack } from './funk';
 import type { GenrePack } from '../schema';
 
 const ALL_PACKS: GenrePack[] = [
@@ -49,6 +50,10 @@ const ALL_PACKS: GenrePack[] = [
   reggaetonPack,
   afrobeatPack,
   jazzFusionPack,
+  funkPack,
+  funkDiscoPack,
+  funkFusionPack,
+  funkRockPack,
 ];
 
 // DEV 모드에서 특정 장르만 로딩하여 초기 빌드/리프레시 속도 향상.
