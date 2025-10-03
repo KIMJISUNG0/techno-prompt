@@ -22,8 +22,8 @@ function colorTokenToCss(t:string){ return COLOR_MAP[t]||'#22d3ee'; }
 
 // ------------- types -------------
 export type ClassicWizardStep='genre'|'bpmTime'|'build';
-export type SeqStep='seq.rootCategory'|'seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
-interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
+export type SeqStep='seq.rootCategory'|'seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.instrumentVariants'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
+interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; instrumentVariants:Record<string,string[]>; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
 interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
 
 // placeholders for alias expansion (future)
@@ -75,8 +75,28 @@ const GENRE_STYLE_VARIANTS:Record<string,{label:string;delta?:number;desc?:strin
   cinematic:[{label:'Epic',delta:0},{label:'Hybrid',delta:0},{label:'Ambient Score',delta:-10}],
 };
 
+// Instrument variant library (fine-grained tags per family)
+const INSTRUMENT_VARIANTS:Record<string,string[]>= {
+  piano:['felt','upright','grand bright','lofi processed','electric keys'],
+  synth:['supersaw','mono acid','fm metallic','wavetable morph','analog warm','digital glass'],
+  pad:['analog warm','granular cloud','shimmer','string pad','dark drone','wide airy'],
+  pluck:['fm pluck','resonant','muted','bell like','digital short'],
+  bass:['sub pure','808 long','808 punch','reese detuned','acid','fm growl'],
+  guitar:['clean chorus','ambient shimmer','distorted lead','muted funk','reverse swell'],
+  strings:['legato lush','staccato','spiccato','pizzicato','low ensemble'],
+  brass:['swell','stab tight','sforzando','low brass'],
+  woodwind:['airy flute','staccato flute','clarinet warm'],
+  vocal:['choir ooh','choir ahh','vocal chop','processed texture','breathy lead'],
+  fx:['impact','riser','downlifter','reverse sweep','noise sweep','transition'],
+  arp:['gated','triplet pattern','ascending','complex pattern'],
+  percpitch:['kalimba clean','music box','steel tone','vibraphone soft'],
+  organ:['tonewheel','rock drive','pipe bright','pad organ'],
+  world:['sitar pluck','pan flute','shakuhachi breath','ethnic drone'],
+  chip:['pulse lead','arp tri','noise perc']
+};
+
 export default function MultiGenrePromptWizard(){
-  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.rootCategory', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] } });
+  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.rootCategory', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, fxTags:[], mixTags:[] } });
   const [loading,setLoading]=useState(false);
 
   function selectGenre(g:GenreId){
@@ -95,7 +115,7 @@ export default function MultiGenrePromptWizard(){
 
   // theming / style tokens
   const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
-  const seqSteps:SeqStep[]=['seq.rootCategory','seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
+  const seqSteps:SeqStep[]=['seq.rootCategory','seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
   const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
@@ -152,13 +172,14 @@ export default function MultiGenrePromptWizard(){
       {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
       {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
     {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.snare')} />}
-  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.drum.extras')} />}
-  {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.instruments')} />}
+  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.instrumentVariants'}))} onBack={()=> backTo('seq.drum.extras')} />}
+  {isSeq && state.step==='seq.instrumentVariants' && <InstrumentVariantStep selectedFamilies={state.seq.instruments} variants={state.seq.instrumentVariants} onChange={(fam,vals)=> setState(s=>({...s,seq:{...s.seq, instrumentVariants:{...s.seq.instrumentVariants,[fam]:vals}}}))} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.instruments')} />}
+  {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.instrumentVariants')} />}
       {isSeq && state.step==='seq.chords' && <SimplePickStep label="Chords/Pad" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,chords:v},step:'seq.lead'}))} onBack={()=> backTo('seq.bass')} />}
       {isSeq && state.step==='seq.lead' && <SimplePickStep label="Lead" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,lead:v},step:'seq.fx'}))} onBack={()=> backTo('seq.chords')} />}
       {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.lead')} />}
       {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
-  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] }, step:'seq.rootCategory'}))} />}
+  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, fxTags:[], mixTags:[] }, step:'seq.rootCategory'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
       <LiveCodingDock />
     </div>
@@ -243,6 +264,36 @@ function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selecte
   );
 }
 
+function InstrumentVariantStep({ selectedFamilies, variants, onChange, onNext, onBack }:{ selectedFamilies:string[]; variants:Record<string,string[]>; onChange:(family:string,vals:string[])=>void; onNext:()=>void; onBack:()=>void }){
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">Instrument Details</h2>
+      {selectedFamilies.length===0 && <div className="text-[11px] text-slate-500">No families selected.</div>}
+      <div className="space-y-5">
+        {selectedFamilies.map(fam=> {
+          // Reuse variant library or fallback short suggestions
+          const pool=(INSTRUMENT_VARIANTS as any)[fam] as string[]|undefined;
+          const sel=variants[fam]||[];
+          if(!pool) return <div key={fam} className="text-[11px] text-slate-500">{fam}: no variants</div>;
+          return (
+            <div key={fam} className="border border-slate-700 rounded-lg p-3">
+              <div className="text-[11px] uppercase tracking-wider text-cyan-300 mb-2">{fam} variants</div>
+              <div className="flex flex-wrap gap-2">
+                {pool.map(v=> { const on=sel.includes(v); return <button key={v} onClick={()=> onChange(fam,on? sel.filter(x=> x!==v):[...sel,v])} className={`px-2 py-1 rounded border text-[10px] ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{v}</button>; })}
+              </div>
+              {sel.length>0 && <div className="mt-2 text-[10px] text-slate-500">Selected: {sel.join(', ')}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-between text-xs">
+        <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
+        <button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button>
+      </div>
+    </div>
+  );
+}
+
 // Override final summary to include instruments
 function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){
   const [compact,setCompact]=useState(false);
@@ -258,11 +309,16 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
     `${t('wizard.drum.snare')}: ${seq.drums.snare||'-'}`,
     `${t('wizard.drum.extras')}: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
   ].join('\n');
+  // Force English output for Suno compatibility
+  const variantDetail = seq.instruments.length ? seq.instruments.map(f=> {
+    const v = seq.instrumentVariants[f];
+    return v && v.length ? `${f}(${v.slice(0,4).join('/')})` : f;
+  }).join(', ') : '';
   const lines=[
-  `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
+    `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
     seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
     compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
-    seq.instruments.length? `INSTRUMENTS: ${seq.instruments.join(', ')}`:'',
+    variantDetail? `INSTRUMENTS: ${variantDetail}`:'',
     seq.bass?`BASS: ${seq.bass}`:'',
     seq.chords?`CHORDS: ${seq.chords}`:'',
     seq.lead?`LEAD: ${seq.lead}`:'',
