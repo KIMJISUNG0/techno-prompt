@@ -22,9 +22,9 @@ function colorTokenToCss(t:string){ return COLOR_MAP[t]||'#22d3ee'; }
 
 // ------------- types -------------
 export type ClassicWizardStep='genre'|'bpmTime'|'build';
-export type SeqStep='seq.rootCategory'|'seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.instrumentVariants'|'seq.roles'|'seq.fx'|'seq.mix'|'seq.final';
+export type SeqStep='seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.instrumentVariants'|'seq.roles'|'seq.fx'|'seq.mix'|'seq.final';
 interface RoleConfig { tone?:string; brightness?:string; }
-interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; instrumentVariants:Record<string,string[]>; roles: { bass:RoleConfig; chords:RoleConfig; lead:RoleConfig }; fxTags:string[]; mixTags:string[]; }
+interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; durationSec?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; instrumentVariants:Record<string,string[]>; roles: { bass:RoleConfig; chords:RoleConfig; lead:RoleConfig }; fxTags:string[]; mixTags:string[]; }
 interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
 
 // placeholders for alias expansion (future)
@@ -174,7 +174,7 @@ const INSTRUMENT_VARIANTS:Record<string,string[]>= {
 };
 
 export default function MultiGenrePromptWizard(){
-  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.rootCategory', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{ bass:{}, chords:{}, lead:{} }, fxTags:[], mixTags:[] } });
+  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.genrePrimary', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{ bass:{}, chords:{}, lead:{} }, fxTags:[], mixTags:[], durationSec:210 } });
   const [loading,setLoading]=useState(false);
 
   function selectGenre(g:GenreId){
@@ -188,12 +188,12 @@ export default function MultiGenrePromptWizard(){
 
   function buildSchema(list:GenreId[]):MergedSchema{ if(list.length>1){ const packs=list.map(id=> GENRE_PACKS.find(p=>p.id===id)||GENRE_PACKS.find(p=>p.id===GENRE_ALIASES[id!])).filter(Boolean) as any[]; if(!packs.length) return {groups:[...universalPack.groups],options:[...universalPack.options],subopts:{...universalPack.subopts},order:universalPack.groups.map(g=>g.id)}; if(packs.length===1) return mergePacks(universalPack,packs[0]); return mergeMultiple(universalPack,packs);} const g0=list[0]; const direct=GENRE_PACKS.find(p=>p.id===g0); const aliasKey=!direct? GENRE_ALIASES[g0!]:undefined; const aliasPack=aliasKey? GENRE_PACKS.find(p=>p.id===aliasKey):undefined; if(direct||aliasPack) return mergePacks(universalPack,(direct||aliasPack)!); return {groups:[...universalPack.groups],options:[...universalPack.options],subopts:{...universalPack.subopts},order:universalPack.groups.map(g=>g.id)}; }
 
-  function confirmBpm(v:{bpm:number;meter:string;swing?:number}){ const list= state.mode==='classic'? (state.genres||(state.genre?[state.genre]:[])) : [state.seq.mainGenre!, ...state.seq.subGenres]; if(!list.length) return; setLoading(true); setTimeout(()=>{ try{ const schema=buildSchema(list as GenreId[]); if(state.mode==='classic') setState(s=>({...s,...v,schema,step:'build'})); else setState(s=>({...s,schema,seq:{...s.seq,bpm:v.bpm,meter:v.meter,swing:v.swing},step:'seq.drum.kick'})); } catch(err){ console.error('schema build failed',err);} finally { setLoading(false);} },40); }
+  function confirmBpm(v:{bpm:number;meter:string;swing?:number;durationSec?:number}){ const list= state.mode==='classic'? (state.genres||(state.genre?[state.genre]:[])) : [state.seq.mainGenre!, ...state.seq.subGenres]; if(!list.length) return; setLoading(true); setTimeout(()=>{ try{ const schema=buildSchema(list as GenreId[]); if(state.mode==='classic') setState(s=>({...s,...v,schema,step:'build'})); else setState(s=>({...s,schema,seq:{...s.seq,bpm:v.bpm,meter:v.meter,swing:v.swing,durationSec:v.durationSec},step:'seq.drum.kick'})); } catch(err){ console.error('schema build failed',err);} finally { setLoading(false);} },40); }
   function backTo(step:ClassicWizardStep|SeqStep){ setState(s=>({...s,step})); }
 
   // theming / style tokens
   const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
-  const seqSteps:SeqStep[]=['seq.rootCategory','seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
+  const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
   const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
@@ -201,7 +201,7 @@ export default function MultiGenrePromptWizard(){
       <header className="mb-8 flex items-center justify-between">
   <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>{t('wizard.title')}{secondTheme? (isKorean()? ' • '+t('wizard.hybrid'):' • HYBRID'):''}</h1>
         <div className="flex gap-2 items-center">
-          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.rootCategory'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
+          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.genrePrimary'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
           {state.mode==='classic' && state.step!=='genre' && <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>}
           {isSeq && progressIndex>0 && <button onClick={()=> backTo(seqSteps[Math.max(0,progressIndex-1)])} className="px-2 py-1 text-xs rounded border border-slate-600 hover:border-cyan-400">Prev</button>}
         </div>
@@ -245,8 +245,7 @@ export default function MultiGenrePromptWizard(){
         <BpmTimeStep genre={state.genre} presets={GENRE_BPM_PRESETS[state.genre]||GENRE_BPM_PRESETS[GENRE_ALIASES[state.genre]]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('genre')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
       {state.mode==='classic' && state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
       {/* Sequential Mode */}
-  {isSeq && state.step==='seq.rootCategory' && <RootCategoryStep onSelect={(root)=> setState(s=>({...s,seq:{...s.seq,rootCategory:root},step:'seq.genrePrimary'}))} />}
-  {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep rootCategory={state.seq.rootCategory} onSelect={(g)=>{ selectGenre(g); const variants=GENRE_STYLE_VARIANTS[g]; if(variants&&variants.length) setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreStyle'})); else setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreSubs'})); }} />}
+  {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep rootCategory={state.seq.rootCategory} setRootCategory={(root)=> setState(s=>({...s,seq:{...s.seq,rootCategory:root}}))} onSelect={(g)=>{ selectGenre(g); const variants=GENRE_STYLE_VARIANTS[g]; if(variants&&variants.length) setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreStyle'})); else setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreSubs'})); }} />}
   {isSeq && state.step==='seq.genreStyle' && state.seq.mainGenre && <GenreStyleStep genre={state.seq.mainGenre} variants={GENRE_STYLE_VARIANTS[state.seq.mainGenre]||[]} onPick={(variant)=> setState(s=>({...s,seq:{...s.seq,styleVariant:variant},step:'seq.genreSubs'}))} onSkip={()=> setState(s=>({...s,seq:{...s.seq,styleVariant:undefined},step:'seq.genreSubs'}))} />}
       {isSeq && state.step==='seq.genreSubs' && <GenreSubsStep state={state} onDone={(subs)=> setState(s=>({...s,seq:{...s.seq,subGenres:subs},step:'seq.tempo'}))} />}
       {isSeq && state.step==='seq.tempo' && state.seq.mainGenre && (()=> {
@@ -275,7 +274,7 @@ export default function MultiGenrePromptWizard(){
   {isSeq && state.step==='seq.roles' && <RolesStep roles={state.seq.roles} onChange={(r)=> setState(s=>({...s,seq:{...s.seq,roles:r}}))} onNext={()=> setState(s=>({...s,step:'seq.fx'}))} onBack={()=> backTo('seq.instrumentVariants')} />}
   {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.roles')} />}
       {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
-  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{bass:{},chords:{},lead:{}}, fxTags:[], mixTags:[] }, step:'seq.rootCategory'}))} />}
+  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{bass:{},chords:{},lead:{}}, fxTags:[], mixTags:[], durationSec:210 }, step:'seq.genrePrimary'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
       <LiveCodingDock />
     </div>
@@ -284,24 +283,30 @@ export default function MultiGenrePromptWizard(){
 
 // ---------------- Sub Components ----------------
 function GenreStep({ onSelect }:{ onSelect:(g:GenreId)=>void }){ const packs=GENRE_PACKS; const placeholders=packs.map(p=>({id:p.id,label:p.label,description:p.description||''})); return (<div className="max-w-4xl mx-auto"><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select a Genre</h2><div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{placeholders.map(p=> (<button key={p.id} onClick={()=> onSelect(p.id)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition"><div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div><p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description||'Genre description...'}</p></button>))}</div></div>); }
-function BpmTimeStep({ genre, presets, onConfirm, onBack, accentBtn, accentGhost, accentPrimary }:{ genre:GenreId; presets:{default:number;low:number;high:number;range:[number,number]}; onConfirm:(v:{bpm:number;meter:string;swing?:number})=>void; onBack:()=>void; accentBtn:string; accentGhost:string; accentPrimary:string }){ const [bpm,setBpm]=useState(presets.default); const [meter,setMeter]=useState('4/4'); const [swing,setSwing]=useState<number|undefined>(); const swings=[0,54,57]; return (<div className="max-w-xl mx-auto space-y-8"><div><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-2">{t('wizard.tempoMeter')}</h2><p className="text-xs text-slate-400 mb-4">{t('wizard.recommendedBpm',{genre:genre.toUpperCase(),low:presets.range[0],high:presets.range[1]})}</p><div className="flex flex-wrap gap-2 mb-3">{[presets.low,presets.default,presets.high].map(v=> <button key={v} onClick={()=> setBpm(v)} className={`px-3 py-1 rounded border text-xs ${bpm===v?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{v} BPM</button>)}</div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">{t('labels.custom')}</label><input type="number" value={bpm} onChange={e=> setBpm(Number(e.target.value)||bpm)} className="bg-slate-800/60 border border-slate-600 rounded px-3 py-1 text-sm w-28 focus:outline-none focus:border-cyan-400" /></div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">{t('labels.meter')}</label><select value={meter} onChange={e=> setMeter(e.target.value)} className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400">{['4/4','3/4','6/8','5/4','7/8','9/8'].map(m=> <option key={m} value={m}>{m}</option>)}</select></div><div className="mb-4"><div className="text-xs text-slate-400 mb-1">{t('labels.swing')}</div><div className="flex gap-2 flex-wrap">{swings.map(s=> <button key={s} onClick={()=> setSwing(s===0?undefined:s)} className={`px-2 py-1 rounded border text-[11px] ${swing===s?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{s===0?t('wizard.swingNone'):s+'%'}</button>)}</div></div><div className="flex justify-between mt-8"><button onClick={onBack} className={`${accentBtn} ${accentGhost}`}>{t('buttons.back')}</button><button onClick={()=> onConfirm({bpm,meter,swing})} className={`${accentBtn} ${accentPrimary}`}>{t('buttons.continue')}</button></div></div></div>); }
+function BpmTimeStep({ genre, presets, onConfirm, onBack, accentBtn, accentGhost, accentPrimary }:{ genre:GenreId; presets:{default:number;low:number;high:number;range:[number,number]}; onConfirm:(v:{bpm:number;meter:string;swing?:number;durationSec?:number})=>void; onBack:()=>void; accentBtn:string; accentGhost:string; accentPrimary:string }){ const [bpm,setBpm]=useState(presets.default); const [meter,setMeter]=useState('4/4'); const [swing,setSwing]=useState<number|undefined>(); const [minutes,setMinutes]=useState(3); const [seconds,setSeconds]=useState(30); const swings=[0,54,57]; const durationSec=minutes*60+seconds; function normSeconds(v:number){ if(isNaN(v)) return; let s=v; if(s<0) s=0; if(s>59) s=59; setSeconds(s);} return (<div className="max-w-xl mx-auto space-y-8"><div><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-2">{t('wizard.tempoMeter')}</h2><p className="text-xs text-slate-400 mb-4">{t('wizard.recommendedBpm',{genre:genre.toUpperCase(),low:presets.range[0],high:presets.range[1]})}</p><div className="flex flex-wrap gap-2 mb-3">{[presets.low,presets.default,presets.high].map(v=> <button key={v} onClick={()=> setBpm(v)} className={`px-3 py-1 rounded border text-xs ${bpm===v?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{v} BPM</button>)}</div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">{t('labels.custom')}</label><input type="number" value={bpm} onChange={e=> setBpm(Number(e.target.value)||bpm)} className="bg-slate-800/60 border border-slate-600 rounded px-3 py-1 text-sm w-28 focus:outline-none focus:border-cyan-400" /></div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">{t('labels.meter')}</label><select value={meter} onChange={e=> setMeter(e.target.value)} className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400">{['4/4','3/4','6/8','5/4','7/8','9/8'].map(m=> <option key={m} value={m}>{m}</option>)}</select></div><div className="grid grid-cols-2 gap-6"><div><div className="text-xs text-slate-400 mb-1">{t('labels.swing')}</div><div className="flex gap-2 flex-wrap">{swings.map(s=> <button key={s} onClick={()=> setSwing(s===0?undefined:s)} className={`px-2 py-1 rounded border text-[11px] ${swing===s?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{s===0?t('wizard.swingNone'):s+'%'}</button>)}</div></div><div><div className="text-xs text-slate-400 mb-1">Track Duration</div><div className="flex items-center gap-2"><input type="number" value={minutes} onChange={e=> setMinutes(Math.max(0,Number(e.target.value)||minutes))} className="w-16 bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400" /> <span className="text-slate-400 text-xs">min</span><input type="number" value={seconds} onChange={e=> normSeconds(Number(e.target.value))} className="w-16 bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400" /> <span className="text-slate-400 text-xs">sec</span></div><div className="text-[10px] text-slate-500 mt-1">Default 3:30 • Adjust as needed</div></div></div><div className="flex justify-between mt-8"><button onClick={onBack} className={`${accentBtn} ${accentGhost}`}>{t('buttons.back')}</button><button onClick={()=> onConfirm({bpm,meter,swing,durationSec})} className={`${accentBtn} ${accentPrimary}`}>{t('buttons.continue')}</button></div></div></div>); }
 // (legacy GenrePrimaryStep removed in favor of rootCategory-aware version)
-function RootCategoryStep({ onSelect }:{ onSelect:(root:string)=>void }){
+function GenrePrimaryStep({ rootCategory, setRootCategory, onSelect }:{ rootCategory?:string; setRootCategory:(id?:string)=>void; onSelect:(g:GenreId)=>void }){
+  const activeCat = ROOT_GENRE_CATEGORIES.find(c=> c.id===rootCategory);
+  const visiblePacks = activeCat? GENRE_PACKS.filter(p=> activeCat.genres.includes(p.id as GenreId)) : GENRE_PACKS;
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <h2 className="text-sm uppercase tracking-widest text-cyan-300">Select Category</h2>
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
-        {ROOT_GENRE_CATEGORIES.map(c=> <button key={c.id} onClick={()=> onSelect(c.id)} className="group rounded-xl p-4 border border-slate-600 hover:border-cyan-400 text-left transition">
-          <div className="text-sm font-medium group-hover:text-cyan-200">{c.label}</div>
-          <div className="mt-2 text-[11px] text-slate-500 leading-snug line-clamp-3">{c.genres.map(g=> g.toUpperCase()).join(' • ')}</div>
-        </button>)}
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-wrap gap-2">
+        <button onClick={()=> setRootCategory(undefined)} className={`px-3 py-1 rounded border text-[11px] ${!rootCategory?'border-cyan-400 text-cyan-200 bg-cyan-600/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>All</button>
+        {ROOT_GENRE_CATEGORIES.map(c=> { const on=c.id===rootCategory; return <button key={c.id} onClick={()=> setRootCategory(on? undefined:c.id)} className={`px-3 py-1 rounded border text-[11px] ${on?'border-cyan-400 text-cyan-200 bg-cyan-600/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>{c.label}</button>; })}
+      </div>
+      <div>
+        <h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-3">Select Genre</h2>
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {visiblePacks.map(p=> (
+            <button key={p.id} onClick={()=> onSelect(p.id as GenreId)} className="group relative rounded-xl border border-slate-600 p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition">
+              <div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div>
+              <p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description||'Genre description...'}</p>
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
-}
-function GenrePrimaryStep({ rootCategory, onSelect }:{ rootCategory?:string; onSelect:(g:GenreId)=>void }){
-  const packs = rootCategory? GENRE_PACKS.filter(p=> ROOT_GENRE_CATEGORIES.find(rc=> rc.id===rootCategory)?.genres.includes(p.id as GenreId)) : GENRE_PACKS;
-  return (<div className="max-w-4xl mx-auto"><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select Genre</h2><div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{packs.map(p=> (<button key={p.id} onClick={()=> onSelect(p.id as GenreId)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition"><div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div><p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description||'Genre description...'}</p></button>))}</div></div>);
 }
 function GenreStyleStep({ genre: _genre, variants, onPick, onSkip }:{ genre:GenreId; variants:{label:string;delta?:number;desc?:string}[]; onPick:(v:string)=>void; onSkip:()=>void }){
   return (
@@ -451,6 +456,7 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
   const lines=[
     `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
     seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
+  seq.durationSec? `DURATION: ${Math.floor(seq.durationSec/60)}:${(seq.durationSec%60).toString().padStart(2,'0')}`:'',
     compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
     variantDetail? `INSTRUMENTS: ${variantDetail}`:'',
   seq.roles.bass.tone||seq.roles.bass.brightness? `BASS: ${[seq.roles.bass.tone, seq.roles.bass.brightness].filter(Boolean).join(' | ')}`:'',
