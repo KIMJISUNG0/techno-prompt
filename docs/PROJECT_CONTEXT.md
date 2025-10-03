@@ -69,6 +69,15 @@ Chain assembled in `toneBridge` with flexible ordering.
 	 - Navigation updated (`main.tsx`) to include Quick link.
  - Rationale: Reduces multi-step branching of legacy wizard; focuses on minimal expressive input (≈3 fields) delivering a fully structured musical draft (sections + role descriptors) under 90 seconds.
  - Next (Future Phases, not yet implemented): Variation slots, reversible op log for transforms, section editor UI, quality heuristics (descriptor density / low-end balance), live sync back into engine patterns, export to pattern DSL, mic texture injection toggle.
+ - Phase 1 Extensions (post-scaffold implemented):
+	 - Section Editor (bars/energy inline) in QuickComposer
+	 - Variation slots (save & recall serialized draft snapshots)
+	 - Undo/Redo stack (serialized snapshots of transforms & manual edits)
+	 - Quality heuristic (descriptor density, repetition, low-end adjective scarcity → score 0..100)
+	 - Mic texture toggle placeholder (UI state for future engine ambient layer)
+	 - Pattern export stub (section → naive KICK/HAT/BASS DSL suggestions inside clipboard export)
+	 - Code splitting (lazy load wizard / quick composer / stack wizard) for faster first paint
+ - Future (still pending): Live sync of draft → engine patterns; richer transform macros; reversible op metadata; advanced pattern inference; adaptive tempo from intent; mic spectral analysis injection.
 
 ### Live Mic Quick Usage
 ```
@@ -88,4 +97,4 @@ Core: WebAudio engine + Tone.js hybrid. Pattern DSL v2 (notes, rests . -, hold '
 ```
 
 ---
-Generated on: 2025-10-02
+Generated on: 2025-10-03

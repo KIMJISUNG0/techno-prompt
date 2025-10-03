@@ -2,12 +2,12 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import TechnoPromptGenerator from "./components/TechnoPromptGenerator";
-import MultiGenrePromptWizard from "./components/wizard/MultiGenrePromptWizard";
-import StackComposerWizard from './components/wizard/StackComposerWizard';
+const MultiGenrePromptWizard = React.lazy(()=> import('./components/wizard/MultiGenrePromptWizard'));
+const StackComposerWizard = React.lazy(()=> import('./components/wizard/StackComposerWizard'));
 import GenrePortal from './components/portal/GenrePortal';
 import TestPlayground from './components/TestPlayground';
 import './live/techno140Demo'; // registers techno140 patch
-import QuickComposer from './components/QuickComposer';
+const QuickComposer = React.lazy(()=> import('./components/QuickComposer'));
 
 // Pre-parse hash for shareable genre selection (#g=genre1+genre2)
 (()=> {
@@ -77,7 +77,9 @@ function AppShell() {
         </div>
       </nav>
       <div className="flex-1">
-        <RootChooser />
+        <React.Suspense fallback={<div className="p-6 text-xs text-slate-500">Loading module…</div>}>
+          <RootChooser />
+        </React.Suspense>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { IntentInput, clampIntensity } from '../intent/types';
 import { recommendGenres } from '../intent/recommend';
-import { buildDefaultDraft, serializeDraft, draftSummary } from '../prompt/sectionDsl';
+import { buildDefaultDraft, serializeDraft, draftSummary, parseDraft } from '../prompt/sectionDsl';
 import { applySlashCommand } from '../prompt/transforms';
 import { evaluateDraft } from '../prompt/quality';
 
@@ -34,6 +34,9 @@ export default function QuickComposer() {
   const [micTexture, setMicTexture] = useState(false); // placeholder (no engine glue yet)
   // Variation slots (simple in-memory snapshots)
   const [variations, setVariations] = useState<{ id: string; label: string; serialized: string }[]>([]);
+  // Undo/Redo stacks (store serialized snapshots)
+  const [undoStack, setUndoStack] = useState<string[]>([]);
+  const [redoStack, setRedoStack] = useState<string[]>([]);
 
   // Build intent object
   const intent: IntentInput = useMemo(() => ({
@@ -53,18 +56,22 @@ export default function QuickComposer() {
     setSerialized(ser);
     setLog([{ note: 'Initial draft', serialized: ser, ts: Date.now() }]);
     setQuality(evaluateDraft(d));
+    setUndoStack([]); setRedoStack([]);
   }
 
   function applySlash() {
     if (!draft) return;
     const res = applySlashCommand(draft, slashInput.trim());
     if (!res) return;
-    setDraft(res.draft);
+    const serBefore = serialized;
     const ser = serializeDraft(res.draft);
+    setDraft(res.draft);
     setSerialized(ser);
     setLog(l => [...l, { note: res.note, serialized: ser, ts: Date.now() }]);
     setSlashInput('');
     setQuality(evaluateDraft(res.draft));
+    setUndoStack(st => [...st, serBefore]);
+    setRedoStack([]);
   }
 
   function resetAll() {
@@ -78,12 +85,15 @@ export default function QuickComposer() {
 
   function updateSection(idx: number, patch: any) {
     if (!draft) return;
+    const before = serialized;
     const next: any = { ...draft, sections: draft.sections.map((s,i)=> i===idx? { ...s, ...patch }: s) };
     setDraft(next as any);
     const ser = serializeDraft(next as any);
     setSerialized(ser);
     setLog(l => [...l, { note: `Manual edit section ${idx}`, serialized: ser, ts: Date.now() }]);
     setQuality(evaluateDraft(next as any));
+    setUndoStack(st => [...st, before]);
+    setRedoStack([]);
   }
 
   function saveVariation() {
@@ -95,14 +105,54 @@ export default function QuickComposer() {
   function loadVariation(id: string) {
     const v = variations.find(x => x.id === id);
     if (!v) return;
-    // For now just replace serialized text (parsing can restore later if needed)
     setSerialized(v.serialized);
+    const parsed = parseDraft(v.serialized);
+    if (parsed) {
+      setDraft(parsed as any);
+      setQuality(evaluateDraft(parsed as any));
+    }
   }
 
   function exportStub() {
     if (!draft) return;
-    const code = `// Exported Pattern Stub (placeholder)\n// Sections: ${draft.sections.length}\n// TODO: map DraftStructure → engine pattern DSL\n`; 
-    navigator.clipboard.writeText(code + serialized);
+    const mapping = draft.sections.map(sec => exportPatternsForSection(sec)).join('\n');
+    const code = `// Exported Pattern Stub\n// Sections: ${draft.sections.length}\n// Generated simplistic role patterns (placeholder)\n${mapping}\n`; 
+    navigator.clipboard.writeText(code + '\n' + serialized);
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    const last = undoStack[undoStack.length - 1];
+    setUndoStack(s => s.slice(0, -1));
+    setRedoStack(r => [...r, serialized]);
+    setSerialized(last);
+    const parsed = parseDraft(last);
+    if (parsed) { setDraft(parsed as any); setQuality(evaluateDraft(parsed as any)); }
+  }
+
+  function redo() {
+    if (!redoStack.length) return;
+    const nextSer = redoStack[redoStack.length - 1];
+    setRedoStack(r => r.slice(0, -1));
+    setUndoStack(u => [...u, serialized]);
+    setSerialized(nextSer);
+    const parsed = parseDraft(nextSer);
+    if (parsed) { setDraft(parsed as any); setQuality(evaluateDraft(parsed as any)); }
+  }
+
+  function exportPatternsForSection(sec: any): string {
+    // extremely naive pattern suggestion (future: intensity→density scaling)
+    // pattern DSL v2: use C3 / . / _ etc.
+    const kickDsl = sec.energy >=4 ? 'C2 . C2 . C2 . C2 .' : 'C2 . . . C2 . . .';
+    const hatDsl = sec.energy >=4 ? 'x.x.x.x.x.x.x.x.' : 'x.x. . x.x. .';
+    const bassDsl = sec.energy >=4 ? 'C2_ . . G2_ . .' : 'C2 . . . G2 . . .';
+    return `// ${sec.id} (${sec.kind}) energy=${sec.energy}\nPATTERN ${sec.id} KICK ${kickDsl}\nPATTERN ${sec.id} HAT ${hatDsl}\nPATTERN ${sec.id} BASS ${bassDsl}`;
+  }
+
+  // Dispatch mic texture placeholder event
+  if (typeof window !== 'undefined') {
+    // fire lightweight event when toggled
+    (window as any).__micTexture = micTexture;
   }
 
   return (
@@ -117,6 +167,8 @@ export default function QuickComposer() {
           {draft && <>
             <button onClick={()=> navigator.clipboard.writeText(serialized)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy Draft</button>
             <button onClick={saveVariation} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Save Var</button>
+            <button onClick={undo} disabled={!undoStack.length} className={`px-3 py-1 rounded border text-slate-300 ${undoStack.length? 'border-slate-600 hover:border-cyan-400':'border-slate-800 text-slate-600 cursor-not-allowed'}`}>Undo</button>
+            <button onClick={redo} disabled={!redoStack.length} className={`px-3 py-1 rounded border text-slate-300 ${redoStack.length? 'border-slate-600 hover:border-cyan-400':'border-slate-800 text-slate-600 cursor-not-allowed'}`}>Redo</button>
             <button onClick={exportStub} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Export Stub</button>
           </>}
         </div>
