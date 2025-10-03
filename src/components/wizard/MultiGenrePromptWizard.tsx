@@ -11,6 +11,7 @@ import { getGenreTheme } from '../../theme/genreThemes';
 import MelodyRecorder from '../melody/MelodyRecorder';
 import InstrumentPromptBuilder from '../InstrumentPromptBuilder';
 import { recommendProgressions } from '../../data/progressions';
+import { INSTRUMENT_CATEGORIES } from '../../data/instrumentCategories';
 
 // ------------- gradient utility helpers -------------
 function extractFirstColor(g:string){ const m=g.split(' ').find(t=>t.startsWith('from-')); return m? colorTokenToCss(m.replace('from-','')):'#22d3ee'; }
@@ -21,8 +22,8 @@ function colorTokenToCss(t:string){ return COLOR_MAP[t]||'#22d3ee'; }
 
 // ------------- types -------------
 export type ClassicWizardStep='genre'|'bpmTime'|'build';
-export type SeqStep='seq.genrePrimary'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.drum.summary'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
-interface SequentialBuildState{ mainGenre?:GenreId; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
+export type SeqStep='seq.genrePrimary'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.drum.summary'|'seq.instruments'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
+interface SequentialBuildState{ mainGenre?:GenreId; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
 interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
 
 // placeholders for alias expansion (future)
@@ -46,7 +47,7 @@ const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;ra
 };
 
 export default function MultiGenrePromptWizard(){
-  const [state,setState]=useState<WizardState>({ mode:'classic', step:'genre', seq:{ subGenres:[], drums:{ extras:[] }, fxTags:[], mixTags:[] } });
+  const [state,setState]=useState<WizardState>({ mode:'classic', step:'genre', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] } });
   const [loading,setLoading]=useState(false);
 
   function selectGenre(g:GenreId){
@@ -65,7 +66,7 @@ export default function MultiGenrePromptWizard(){
 
   // theming / style tokens
   const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
-  const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.drum.summary','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
+  const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.drum.summary','seq.instruments','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
   const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
@@ -80,7 +81,31 @@ export default function MultiGenrePromptWizard(){
       </header>
       {isSeq && (
         <div className="mb-6 flex flex-wrap gap-1 items-center text-[10px]">
-          {seqSteps.map(st=>{const on=st===state.step; return <button key={st} onClick={()=> backTo(st)} className={`px-2 py-1 rounded border ${on? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-700 hover:border-cyan-400 text-slate-400'}`}>{st.replace('seq.','').replace(/\./g,'›')}</button>;})}
+          {seqSteps.map(st=>{
+            const on=st===state.step;
+            const completedIndex=seqSteps.indexOf(st) < progressIndex; // 이미 지나간 단계
+            let tooltip='';
+            if(completedIndex){
+              if(st.startsWith('seq.drum.summary')) tooltip=`DRUMS: ${[state.seq.drums.kick,state.seq.drums.hat,state.seq.drums.snare].filter(Boolean).join(', ')}`;
+              else if(st==='seq.instruments' && state.seq.instruments.length) tooltip=`INSTR: ${state.seq.instruments.slice(0,4).join(', ')}${state.seq.instruments.length>4?'…':''}`;
+              else if(st==='seq.bass' && state.seq.bass) tooltip=`BASS: ${state.seq.bass}`;
+              else if(st==='seq.chords' && state.seq.chords) tooltip=`CHORDS: ${state.seq.chords}`;
+              else if(st==='seq.lead' && state.seq.lead) tooltip=`LEAD: ${state.seq.lead}`;
+              else if(st==='seq.fx' && state.seq.fxTags.length) tooltip=`FX: ${state.seq.fxTags.slice(0,3).join(', ')}${state.seq.fxTags.length>3?'…':''}`;
+              else if(st==='seq.mix' && state.seq.mixTags.length) tooltip=`MIX: ${state.seq.mixTags.slice(0,3).join(', ')}${state.seq.mixTags.length>3?'…':''}`;
+            }
+            return (
+              <button
+                key={st}
+                onClick={()=> backTo(st)}
+                title={tooltip||undefined}
+                className={`relative px-2 py-1 rounded border transition ${on? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-700 hover:border-cyan-400 text-slate-400'} ${completedIndex&&!on?'opacity-90':''}`}
+              >
+                {st.replace('seq.','').replace(/\./g,'›')}
+                {completedIndex && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-400 shadow-[0_0_4px_#0ff]" />}
+              </button>
+            );
+          })}
         </div>
       )}
       {/* Classic Mode */}
@@ -96,13 +121,14 @@ export default function MultiGenrePromptWizard(){
       {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
       {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
       {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.drum.summary'}))} onBack={()=> backTo('seq.drum.snare')} />}
-      {isSeq && state.step==='seq.drum.summary' && <DrumSummaryStep seq={state.seq} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.drum.extras')} />}
-      {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.drum.summary')} />}
+  {isSeq && state.step==='seq.drum.summary' && <DrumSummaryStep seq={state.seq} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.extras')} />}
+  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.drum.summary')} />}
+  {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.instruments')} />}
       {isSeq && state.step==='seq.chords' && <SimplePickStep label="Chords/Pad" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,chords:v},step:'seq.lead'}))} onBack={()=> backTo('seq.bass')} />}
       {isSeq && state.step==='seq.lead' && <SimplePickStep label="Lead" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,lead:v},step:'seq.fx'}))} onBack={()=> backTo('seq.chords')} />}
       {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.lead')} />}
       {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
-      {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, fxTags:[], mixTags:[] }, step:'seq.genrePrimary'}))} />}
+  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] }, step:'seq.genrePrimary'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
       <LiveCodingDock />
     </div>
@@ -116,11 +142,80 @@ function GenrePrimaryStep({ onSelect }:{ onSelect:(g:GenreId)=>void }){ return <
 function GenreSubsStep({ state, onDone }:{ state:WizardState; onDone:(subs:GenreId[])=>void }){ const packs=GENRE_PACKS.filter(p=> p.id!==state.seq.mainGenre); const [local,setLocal]=useState<GenreId[]>(state.seq.subGenres); return (<div className="max-w-3xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Add Sub Genres (Optional)</h2><div className="flex flex-wrap gap-2">{packs.map(p=> { const on=local.includes(p.id); return <button key={p.id} onClick={()=> setLocal(l=> on? l.filter(x=> x!==p.id):[...l,p.id])} className={`px-3 py-1 rounded border text-xs ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{p.label}</button>; })}</div><div className="flex justify-end gap-2 text-xs"><button onClick={()=> onDone(local)} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Continue</button></div></div>); }
 function DrumPickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const base=['punchy','deep','analog','distorted','tight','airy']; const ext=['saturated','round','clicky','subby','crisp','woody']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.select',{label})}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button></div></div>); }
 function DrumExtrasStep({ extras, onChange, onNext, onBack }:{ extras:string[]; onChange:(a:string[])=>void; onNext:()=>void; onBack:()=>void }){ const base=['clap','shaker','rim','tom','ride']; const ext=['cowbell','snap','clave','bongo','conga','fx noise']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.extraPerc')}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=extras.includes(o); return <button key={o} onClick={()=> onChange(on? extras.filter(x=> x!==o):[...extras,o])} className={`px-3 py-1 rounded border text-xs ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button></div></div>); }
-function DrumSummaryStep({ seq, onNext, onBack }:{ seq:SequentialBuildState; onNext:()=>void; onBack:()=>void }){ const line=`DRUM FOUNDATION: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join(' + '):''}`; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.drumSummary')}</h2><pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap">{line}</pre><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={()=>{navigator.clipboard.writeText(line); onNext();}} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">{t('buttons.copyContinue')}</button></div></div>); }
+// (original DrumSummaryStep removed; override version defined later)
 function SimplePickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const base=['warm','analog','bright','dark','wide','crisp']; const ext=['glassy','noisy','fat','hollow','plucky','evolving']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.select',{label})}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button></div></div>); }
 function TagPickStep({ label, values, onChange, onNext, onBack }:{ label:string; values:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void }){ const baseFX=['shimmer','tape delay','grit','modulated','lofi','wide']; const extFX=['granular','reverse','bitcrush','phased','washed','droning']; const baseMix=['tight low-end','airy highs','glue','wide stereo','punchy mid']; const extMix=['forward vocal','balanced','open top','fat center','deep space','dry punch']; const opts= label==='FX'? [...baseFX,...extFX]: [...baseMix,...extMix]; const title= label==='FX'? t('wizard.fxTags'): t('wizard.mixTags'); return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{title}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=values.includes(o); return <button key={o} onClick={()=> onChange(on? values.filter(x=> x!==o):[...values,o])} className={`px-3 py-1 rounded border text-xs ${on? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button></div></div>); }
-function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){ const lines=[`GENRE: ${seq.mainGenre}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`, seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'', `DRUMS: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join('+'):''}`, seq.bass?`BASS: ${seq.bass}`:'', seq.chords?`CHORDS: ${seq.chords}`:'', seq.lead?`LEAD: ${seq.lead}`:'', seq.fxTags.length? 'FX: '+seq.fxTags.join(', '):'', seq.mixTags.length? 'MIX: '+seq.mixTags.join(', '):''].filter(Boolean).join('\n'); return (<div className="max-w-2xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.finalSummary')}</h2><pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre><div className="flex justify-between text-xs"><button onClick={onRestart} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.restart')}</button><button onClick={()=> navigator.clipboard.writeText(lines)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">{t('buttons.copy')}</button></div></div>); }
+// (original FinalSeqSummary removed; override version defined later)
 function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState; onBack:()=>void; accentBtn:string; accentGhost:string }){ const [melodySummary,setMelodySummary]=useState<any|null>(null); const [includeMelody,setIncludeMelody]=useState(true); const [mode,setMode]=useState<'schema'|'instrument'>('schema'); const [pickedProg,setPickedProg]=useState<string|undefined>(); const [compact,setCompact]=useState(false); const recProgs=useMemo(()=> state.genres? recommendProgressions(state.genres,5): state.genre? recommendProgressions([state.genre],5):[], [state.genres,state.genre]); function buildMelodySuffix(){ if(!includeMelody||!melodySummary) return ''; const parts:string[]=[]; if(melodySummary.medianNote) parts.push(`melody centered on ${melodySummary.medianNote}`); if(melodySummary.keyGuess) parts.push(`${melodySummary.keyGuess}`); if(melodySummary.stability!=null) parts.push(`stability ${(melodySummary.stability*100).toFixed(0)}%`); if(melodySummary.scaleCandidates?.length) parts.push(`scales ${melodySummary.scaleCandidates.map((s:any)=> s.scale.split(' ')[0]).slice(0,2).join('/')}`); return parts.join(' | ');} const suffix=buildMelodySuffix(); const genreDescriptions=(state.genres||(state.genre?[state.genre]:[])).map(id=>{const pack=GENRE_PACKS.find(p=> p.id===id); return pack? `${pack.label}: ${pack.description||''}`.trim():null;}).filter(Boolean).join(' | '); const progressionSuffix=useMemo(()=>{ if(!pickedProg) return ''; const f=recProgs.find(p=> p.id===pickedProg); return f? `Progression: ${f.roman}`:''; },[pickedProg,recProgs]); return (<div className="space-y-6"><div className="flex items-center justify-between"><div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter&&state.meter!=='4/4'?' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div><button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button></div><div className="flex gap-3 text-[11px]"><button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button><button onClick={()=> setMode('instrument')} className={`px-3 py-1 rounded border ${mode==='instrument'?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Instrument Mode</button>{mode==='schema' && <button onClick={()=> setCompact(c=>!c)} className={`px-3 py-1 rounded border ${compact?'border-emerald-400 text-emerald-200 bg-emerald-600/10':'border-slate-600 text-slate-400 hover:border-emerald-400 hover:text-emerald-200'}`}>{compact? 'Compact ON':'Compact OFF'}</button>}</div><div className="flex items-center gap-3 text-[11px] text-slate-400"><label className="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" checked={includeMelody} onChange={e=> setIncludeMelody(e.target.checked)} /><span>Include Melody Summary</span></label>{suffix && <span className="text-slate-500 truncate max-w-[420px]">Preview: {suffix}</span>}</div><div className="grid lg:grid-cols-3 gap-6"><div className="lg:col-span-2 space-y-6">{mode==='schema' && state.schema && <SchemaPromptBuilder schema={state.schema} bpm={state.bpm} meter={state.meter} swing={state.swing} extraSuffix={[genreDescriptions,progressionSuffix,suffix].filter(Boolean).join(', ')} compact={compact} />}{mode==='instrument' && <InstrumentPromptBuilder />}</div><div className="lg:col-span-1 space-y-6"><MelodyRecorder onResult={(r)=> setMelodySummary(r)} /><div className="rounded-xl panel-dim p-3 space-y-2"><h4 className="text-[11px] uppercase tracking-wider text-slate-300">Genre Progressions</h4>{recProgs.length===0 && <div className="text-[11px] text-slate-500">No patterns</div>}<div className="flex flex-wrap gap-2">{recProgs.map((p:any)=>{const on=p.id===pickedProg; return <button key={p.id} onClick={()=> setPickedProg(on? undefined:p.id)} className={`px-2 py-1 rounded border text-[10px] transition ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400 hover:text-fuchsia-200'}`}>{p.roman}</button>;})}</div>{pickedProg && <div className="text-[10px] text-slate-500">Selected: {recProgs.find((p:any)=> p.id===pickedProg)?.label}</div>}</div></div></div></div>); }
 function LiveCodingDock(){ const [open,setOpen]=useState(false); const [hover,setHover]=useState(false); useEffect(()=>{ function onReq(){ setOpen(true);} window.addEventListener('livecode.requestOpen',onReq as any); function onKey(e:KeyboardEvent){ if((e.metaKey||e.ctrlKey)&&(e.key==='l'||e.key==='L')){ e.preventDefault(); setOpen(o=>!o);} } window.addEventListener('keydown',onKey); return ()=>{ window.removeEventListener('livecode.requestOpen',onReq as any); window.removeEventListener('keydown',onKey); };},[]); return (<><div className={`fixed bottom-6 right-0 z-40 group ${open?'translate-x-0':'translate-x-[calc(100%-52px)]'} transition-transform duration-300`} onMouseEnter={()=> setHover(true)} onMouseLeave={()=> setHover(false)}><div className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-l-xl shadow-lg border border-r-0 backdrop-blur-md cursor-pointer select-none ${open?'bg-cyan-600/30 border-cyan-500/40':'bg-slate-800/60 border-slate-600/40 hover:bg-slate-700/70'}`} onClick={()=> setOpen(o=>!o)}><span className="text-[11px] tracking-wide text-slate-200">{open?'LIVE CODING':'LIVE'}</span><button onClick={(e)=>{ e.stopPropagation(); setOpen(false);}} className={`text-slate-400 hover:text-cyan-200 text-xs px-1 rounded transition-opacity ${open||hover?'opacity-100':'opacity-0'} focus:opacity-100`} aria-label="Close live coding console">×</button></div></div><div className={`fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg transition-transform duration-300 ${open?'translate-x-0':'translate-x-full'}`}>{open && <LiveCodingConsole onClose={()=> setOpen(false)} />}</div></>); }
 
 // (legacy duplicated component block removed during rewrite)
+
+// --- Extended injected overrides (instrument step + prompt aggregation) ---
+// Override DrumSummaryStep to remove clipboard copy (copy only at final summary)
+function DrumSummaryStep({ seq, onNext, onBack }:{ seq:SequentialBuildState; onNext:()=>void; onBack:()=>void }){
+  const line=`DRUM FOUNDATION: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join(' + '):''}`;
+  return (
+    <div className="max-w-xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.drumSummary')}</h2>
+      <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap">{line}</pre>
+      <div className="flex justify-between text-xs">
+        <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
+        <button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button>
+      </div>
+    </div>
+  );
+}
+
+function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selected:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void }){
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.instrumentFamilies')}</h2>
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        {INSTRUMENT_CATEGORIES.map(cat=> { const on=selected.includes(cat.id); return (
+          <button
+            key={cat.id}
+            onClick={()=> onChange(on? selected.filter(x=> x!==cat.id):[...selected,cat.id])}
+            className={`group relative rounded-xl border p-3 text-left transition text-[11px] ${on?'border-cyan-300/80 bg-cyan-500/10 text-cyan-100 ring-1 ring-cyan-400/40':'border-slate-600 hover:border-cyan-400 text-slate-300'}`}
+          >
+            <div className="text-xs font-medium mb-1 tracking-wide group-hover:text-cyan-200">{t(`inst.${cat.id}`)}</div>
+            <div className="text-[10px] text-slate-500 group-hover:text-slate-400 leading-snug line-clamp-3 min-h-[2.6rem]">{t(`inst.${cat.id}.desc`)}</div>
+            {on && <span className="absolute top-1 right-1 text-[9px] px-1 py-[1px] rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-100">✓</span>}
+          </button>
+        ); })}
+      </div>
+      <div className="flex justify-between text-xs">
+        <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
+        <div className="flex gap-2 items-center">
+          <span className="text-[10px] text-slate-500">{t('wizard.selectedCount',{n:selected.length})}</span>
+          <button disabled={!selected.length} onClick={onNext} className={`px-3 py-1 rounded border  ${selected.length? 'border-cyan-400 text-cyan-200 bg-cyan-600/10 hover:brightness-110':'border-slate-700 text-slate-600 cursor-not-allowed'}`}>{t('buttons.continue')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Override final summary to include instruments
+function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){
+  const lines=[
+    `GENRE: ${seq.mainGenre}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
+    seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
+    `DRUMS: ${[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')}${seq.drums.extras.length?' + '+seq.drums.extras.join('+'):''}`,
+    seq.instruments.length? `INSTRUMENTS: ${seq.instruments.join(', ')}`:'',
+    seq.bass?`BASS: ${seq.bass}`:'',
+    seq.chords?`CHORDS: ${seq.chords}`:'',
+    seq.lead?`LEAD: ${seq.lead}`:'',
+    seq.fxTags.length? 'FX: '+seq.fxTags.join(', '):'',
+    seq.mixTags.length? 'MIX: '+seq.mixTags.join(', '):''
+  ].filter(Boolean).join('\n');
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.finalSummary')}</h2>
+      <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre>
+      <div className="flex justify-between text-xs">
+        <button onClick={onRestart} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.restart')}</button>
+        <button onClick={()=> navigator.clipboard.writeText(lines)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">{t('buttons.copy')}</button>
+      </div>
+    </div>
+  );
+}
