@@ -22,8 +22,8 @@ function colorTokenToCss(t:string){ return COLOR_MAP[t]||'#22d3ee'; }
 
 // ------------- types -------------
 export type ClassicWizardStep='genre'|'bpmTime'|'build';
-export type SeqStep='seq.genrePrimary'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.drum.summary'|'seq.instruments'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
-interface SequentialBuildState{ mainGenre?:GenreId; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
+export type SeqStep='seq.rootCategory'|'seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
+interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
 interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
 
 // placeholders for alias expansion (future)
@@ -46,8 +46,37 @@ const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;ra
   pop:{default:118,low:100,high:124,range:[96,126]},
 };
 
+// Root genre categories (high-level) mapping to available packs
+const ROOT_GENRE_CATEGORIES:{id:string;label:string;genres:GenreId[]}[]=[
+  {id:'edm',label:'EDM / Electronic',genres:['techno','techhouse','house','trance','dubstep','dnb'] as GenreId[]},
+  {id:'urban',label:'Urban / HipHop',genres:['hiphop','boomBap','trap','lofiBeats'] as GenreId[]},
+  {id:'cinematic',label:'Cinematic / Score',genres:['cinematic','orchestral','ambient'] as GenreId[]},
+  {id:'pop',label:'Pop / Mainstream',genres:['pop'] as GenreId[]}
+];
+
+// Style variants per core genre with BPM adjustment deltas (affects default only)
+const GENRE_STYLE_VARIANTS:Record<string,{label:string;delta?:number;desc?:string}[]>={
+  techno:[
+    {label:'Hard Techno',delta:4,desc:'Harder, faster energy'},
+    {label:'Peak Time',delta:2,desc:'Mainroom drive'},
+    {label:'Minimal',delta:-4,desc:'Stripped, space focus'},
+    {label:'Acid',delta:0,desc:'303 resonance style'},
+    {label:'Industrial',delta:3,desc:'Distorted, raw texture'}
+  ],
+  house:[
+    {label:'Deep House',delta:-4},{label:'Progressive House',delta:+2},{label:'Electro House',delta:+3},{label:'Funky House',delta:0}
+  ],
+  trance:[{label:'Uplifting',delta:+2},{label:'Progressive',delta:-2},{label:'Psy',delta:+4}],
+  dubstep:[{label:'Riddim',delta:0},{label:'Melodic',delta:0},{label:'Brostep',delta:+2}],
+  dnb:[{label:'Liquid',delta:-2},{label:'Neurofunk',delta:+2},{label:'Jungle',delta:0}],
+  hiphop:[{label:'Boom Bap',delta:0},{label:'Modern Trap',delta:+50,desc:'Half-time feel (double-time base)'},{label:'Lo-Fi',delta:-10}],
+  trap:[{label:'EDM Trap',delta:0},{label:'Dark Trap',delta:0}],
+  pop:[{label:'Dance Pop',delta:+2},{label:'Electro Pop',delta:+4},{label:'Indie Pop',delta:-2}],
+  cinematic:[{label:'Epic',delta:0},{label:'Hybrid',delta:0},{label:'Ambient Score',delta:-10}],
+};
+
 export default function MultiGenrePromptWizard(){
-  const [state,setState]=useState<WizardState>({ mode:'classic', step:'genre', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] } });
+  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.rootCategory', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] } });
   const [loading,setLoading]=useState(false);
 
   function selectGenre(g:GenreId){
@@ -66,7 +95,7 @@ export default function MultiGenrePromptWizard(){
 
   // theming / style tokens
   const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
-  const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.drum.summary','seq.instruments','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
+  const seqSteps:SeqStep[]=['seq.rootCategory','seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
   const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
@@ -74,7 +103,7 @@ export default function MultiGenrePromptWizard(){
       <header className="mb-8 flex items-center justify-between">
   <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>{t('wizard.title')}{secondTheme? (isKorean()? ' • '+t('wizard.hybrid'):' • HYBRID'):''}</h1>
         <div className="flex gap-2 items-center">
-          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.genrePrimary'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
+          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.rootCategory'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
           {state.mode==='classic' && state.step!=='genre' && <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>}
           {isSeq && progressIndex>0 && <button onClick={()=> backTo(seqSteps[Math.max(0,progressIndex-1)])} className="px-2 py-1 text-xs rounded border border-slate-600 hover:border-cyan-400">Prev</button>}
         </div>
@@ -86,7 +115,7 @@ export default function MultiGenrePromptWizard(){
             const completedIndex=seqSteps.indexOf(st) < progressIndex; // 이미 지나간 단계
             let tooltip='';
             if(completedIndex){
-              if(st.startsWith('seq.drum.summary')) tooltip=`DRUMS: ${[state.seq.drums.kick,state.seq.drums.hat,state.seq.drums.snare].filter(Boolean).join(', ')}`;
+              if(st==='seq.drum.extras') tooltip=`DRUMS: ${[state.seq.drums.kick,state.seq.drums.hat,state.seq.drums.snare].filter(Boolean).join(', ')}`;
               else if(st==='seq.instruments' && state.seq.instruments.length) tooltip=`INSTR: ${state.seq.instruments.slice(0,4).join(', ')}${state.seq.instruments.length>4?'…':''}`;
               else if(st==='seq.bass' && state.seq.bass) tooltip=`BASS: ${state.seq.bass}`;
               else if(st==='seq.chords' && state.seq.chords) tooltip=`CHORDS: ${state.seq.chords}`;
@@ -114,21 +143,22 @@ export default function MultiGenrePromptWizard(){
         <BpmTimeStep genre={state.genre} presets={GENRE_BPM_PRESETS[state.genre]||GENRE_BPM_PRESETS[GENRE_ALIASES[state.genre]]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('genre')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
       {state.mode==='classic' && state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
       {/* Sequential Mode */}
-      {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep onSelect={selectGenre} />}
+  {isSeq && state.step==='seq.rootCategory' && <RootCategoryStep onSelect={(root)=> setState(s=>({...s,seq:{...s.seq,rootCategory:root},step:'seq.genrePrimary'}))} />}
+  {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep rootCategory={state.seq.rootCategory} onSelect={(g)=>{ selectGenre(g); const variants=GENRE_STYLE_VARIANTS[g]; if(variants&&variants.length) setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreStyle'})); else setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreSubs'})); }} />}
+  {isSeq && state.step==='seq.genreStyle' && state.seq.mainGenre && <GenreStyleStep genre={state.seq.mainGenre} variants={GENRE_STYLE_VARIANTS[state.seq.mainGenre]||[]} onPick={(variant)=> setState(s=>({...s,seq:{...s.seq,styleVariant:variant},step:'seq.genreSubs'}))} onSkip={()=> setState(s=>({...s,seq:{...s.seq,styleVariant:undefined},step:'seq.genreSubs'}))} />}
       {isSeq && state.step==='seq.genreSubs' && <GenreSubsStep state={state} onDone={(subs)=> setState(s=>({...s,seq:{...s.seq,subGenres:subs},step:'seq.tempo'}))} />}
       {isSeq && state.step==='seq.tempo' && state.seq.mainGenre && (<BpmTimeStep genre={state.seq.mainGenre} presets={GENRE_BPM_PRESETS[state.seq.mainGenre]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('seq.genreSubs')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
       {isSeq && state.step==='seq.drum.kick' && <DrumPickStep label="Kick" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,kick:val}},step:'seq.drum.hat'}))} onBack={()=> backTo('seq.tempo')} />}
       {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
       {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
-      {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.drum.summary'}))} onBack={()=> backTo('seq.drum.snare')} />}
-  {isSeq && state.step==='seq.drum.summary' && <DrumSummaryStep seq={state.seq} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.extras')} />}
-  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.drum.summary')} />}
+    {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.snare')} />}
+  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.drum.extras')} />}
   {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.instruments')} />}
       {isSeq && state.step==='seq.chords' && <SimplePickStep label="Chords/Pad" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,chords:v},step:'seq.lead'}))} onBack={()=> backTo('seq.bass')} />}
       {isSeq && state.step==='seq.lead' && <SimplePickStep label="Lead" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,lead:v},step:'seq.fx'}))} onBack={()=> backTo('seq.chords')} />}
       {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.lead')} />}
       {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
-  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] }, step:'seq.genrePrimary'}))} />}
+  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], fxTags:[], mixTags:[] }, step:'seq.rootCategory'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
       <LiveCodingDock />
     </div>
@@ -138,7 +168,38 @@ export default function MultiGenrePromptWizard(){
 // ---------------- Sub Components ----------------
 function GenreStep({ onSelect }:{ onSelect:(g:GenreId)=>void }){ const packs=GENRE_PACKS; const placeholders=packs.map(p=>({id:p.id,label:p.label,description:p.description||''})); return (<div className="max-w-4xl mx-auto"><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select a Genre</h2><div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{placeholders.map(p=> (<button key={p.id} onClick={()=> onSelect(p.id)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition"><div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div><p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description||'Genre description...'}</p></button>))}</div></div>); }
 function BpmTimeStep({ genre, presets, onConfirm, onBack, accentBtn, accentGhost, accentPrimary }:{ genre:GenreId; presets:{default:number;low:number;high:number;range:[number,number]}; onConfirm:(v:{bpm:number;meter:string;swing?:number})=>void; onBack:()=>void; accentBtn:string; accentGhost:string; accentPrimary:string }){ const [bpm,setBpm]=useState(presets.default); const [meter,setMeter]=useState('4/4'); const [swing,setSwing]=useState<number|undefined>(); const swings=[0,54,57]; return (<div className="max-w-xl mx-auto space-y-8"><div><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-2">{t('wizard.tempoMeter')}</h2><p className="text-xs text-slate-400 mb-4">{t('wizard.recommendedBpm',{genre:genre.toUpperCase(),low:presets.range[0],high:presets.range[1]})}</p><div className="flex flex-wrap gap-2 mb-3">{[presets.low,presets.default,presets.high].map(v=> <button key={v} onClick={()=> setBpm(v)} className={`px-3 py-1 rounded border text-xs ${bpm===v?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{v} BPM</button>)}</div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">{t('labels.custom')}</label><input type="number" value={bpm} onChange={e=> setBpm(Number(e.target.value)||bpm)} className="bg-slate-800/60 border border-slate-600 rounded px-3 py-1 text-sm w-28 focus:outline-none focus:border-cyan-400" /></div><div className="flex items-center gap-3 mb-4"><label className="text-xs text-slate-400 w-20">{t('labels.meter')}</label><select value={meter} onChange={e=> setMeter(e.target.value)} className="bg-slate-800/60 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-cyan-400">{['4/4','3/4','6/8','5/4','7/8','9/8'].map(m=> <option key={m} value={m}>{m}</option>)}</select></div><div className="mb-4"><div className="text-xs text-slate-400 mb-1">{t('labels.swing')}</div><div className="flex gap-2 flex-wrap">{swings.map(s=> <button key={s} onClick={()=> setSwing(s===0?undefined:s)} className={`px-2 py-1 rounded border text-[11px] ${swing===s?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 hover:border-cyan-400'}`}>{s===0?t('wizard.swingNone'):s+'%'}</button>)}</div></div><div className="flex justify-between mt-8"><button onClick={onBack} className={`${accentBtn} ${accentGhost}`}>{t('buttons.back')}</button><button onClick={()=> onConfirm({bpm,meter,swing})} className={`${accentBtn} ${accentPrimary}`}>{t('buttons.continue')}</button></div></div></div>); }
-function GenrePrimaryStep({ onSelect }:{ onSelect:(g:GenreId)=>void }){ return <GenreStep onSelect={onSelect}/>; }
+// (legacy GenrePrimaryStep removed in favor of rootCategory-aware version)
+function RootCategoryStep({ onSelect }:{ onSelect:(root:string)=>void }){
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">Select Category</h2>
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {ROOT_GENRE_CATEGORIES.map(c=> <button key={c.id} onClick={()=> onSelect(c.id)} className="group rounded-xl p-4 border border-slate-600 hover:border-cyan-400 text-left transition">
+          <div className="text-sm font-medium group-hover:text-cyan-200">{c.label}</div>
+          <div className="mt-2 text-[11px] text-slate-500 leading-snug line-clamp-3">{c.genres.map(g=> g.toUpperCase()).join(' • ')}</div>
+        </button>)}
+      </div>
+    </div>
+  );
+}
+function GenrePrimaryStep({ rootCategory, onSelect }:{ rootCategory?:string; onSelect:(g:GenreId)=>void }){
+  const packs = rootCategory? GENRE_PACKS.filter(p=> ROOT_GENRE_CATEGORIES.find(rc=> rc.id===rootCategory)?.genres.includes(p.id as GenreId)) : GENRE_PACKS;
+  return (<div className="max-w-4xl mx-auto"><h2 className="text-sm uppercase tracking-widest text-cyan-300 mb-4">Select Genre</h2><div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">{packs.map(p=> (<button key={p.id} onClick={()=> onSelect(p.id as GenreId)} className="group relative glass-card rounded-xl p-4 text-left hover:border-cyan-400 hover:shadow-cyan-500/10 transition"><div className="text-base font-medium tracking-wide group-hover:text-cyan-200 drop-shadow">{p.label}</div><p className="mt-2 text-[11px] text-slate-400 line-clamp-3 min-h-[2.5rem]">{p.description||'Genre description...'}</p></button>))}</div></div>);
+}
+function GenreStyleStep({ genre: _genre, variants, onPick, onSkip }:{ genre:GenreId; variants:{label:string;delta?:number;desc?:string}[]; onPick:(v:string)=>void; onSkip:()=>void }){
+  return (
+    <div className="max-w-xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">Select Style Variant</h2>
+      <div className="flex flex-wrap gap-2">
+        {variants.map(v=> <button key={v.label} onClick={()=> onPick(v.label)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300 relative">
+          {v.label}
+          {v.delta? <span className="ml-1 text-[9px] text-slate-500">{v.delta>0? '+'+v.delta:''+v.delta}</span>:null}
+        </button>)}
+        <button onClick={onSkip} className="px-3 py-1 rounded border text-xs border-slate-700 hover:border-slate-500 text-slate-500">Skip</button>
+      </div>
+    </div>
+  );
+}
 function GenreSubsStep({ state, onDone }:{ state:WizardState; onDone:(subs:GenreId[])=>void }){ const packs=GENRE_PACKS.filter(p=> p.id!==state.seq.mainGenre); const [local,setLocal]=useState<GenreId[]>(state.seq.subGenres); return (<div className="max-w-3xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Add Sub Genres (Optional)</h2><div className="flex flex-wrap gap-2">{packs.map(p=> { const on=local.includes(p.id); return <button key={p.id} onClick={()=> setLocal(l=> on? l.filter(x=> x!==p.id):[...l,p.id])} className={`px-3 py-1 rounded border text-xs ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{p.label}</button>; })}</div><div className="flex justify-end gap-2 text-xs"><button onClick={()=> onDone(local)} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Continue</button></div></div>); }
 function DrumPickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const base=['punchy','deep','analog','distorted','tight','airy']; const ext=['saturated','round','clicky','subby','crisp','woody']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.select',{label})}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button></div></div>); }
 function DrumExtrasStep({ extras, onChange, onNext, onBack }:{ extras:string[]; onChange:(a:string[])=>void; onNext:()=>void; onBack:()=>void }){ const base=['clap','shaker','rim','tom','ride']; const ext=['cowbell','snap','clave','bongo','conga','fx noise']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.extraPerc')}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=extras.includes(o); return <button key={o} onClick={()=> onChange(on? extras.filter(x=> x!==o):[...extras,o])} className={`px-3 py-1 rounded border text-xs ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button></div></div>); }
@@ -152,25 +213,7 @@ function LiveCodingDock(){ const [open,setOpen]=useState(false); const [hover,se
 // (legacy duplicated component block removed during rewrite)
 
 // --- Extended injected overrides (instrument step + prompt aggregation) ---
-// Override DrumSummaryStep to remove clipboard copy (copy only at final summary)
-function DrumSummaryStep({ seq, onNext, onBack }:{ seq:SequentialBuildState; onNext:()=>void; onBack:()=>void }){
-  const lines=[
-    `${t('wizard.drum.kick')}: ${seq.drums.kick||'-'}`,
-    `${t('wizard.drum.hat')}: ${seq.drums.hat||'-'}`,
-    `${t('wizard.drum.snare')}: ${seq.drums.snare||'-'}`,
-    `${t('wizard.drum.extras')}: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
-  ].join('\n');
-  return (
-    <div className="max-w-xl mx-auto space-y-6">
-      <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.drumSummary')}</h2>
-      <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre>
-      <div className="flex justify-between text-xs">
-        <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
-        <button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button>
-      </div>
-    </div>
-  );
-}
+// DrumSummaryStep removed (drum details only appear in final summary now)
 
 function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selected:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void }){
   return (
@@ -203,7 +246,12 @@ function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selecte
 // Override final summary to include instruments
 function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){
   const [compact,setCompact]=useState(false);
-  const drumBlockCompact=[seq.drums.kick,seq.drums.hat,seq.drums.snare].filter(Boolean).join(', ')+(seq.drums.extras.length? ' + '+seq.drums.extras.join('+'):'');
+  const drumBlockCompact=[
+    seq.drums.kick? 'K:'+seq.drums.kick:undefined,
+    seq.drums.hat? 'H:'+seq.drums.hat:undefined,
+    seq.drums.snare? 'S:'+seq.drums.snare:undefined,
+    seq.drums.extras.length? 'X:'+seq.drums.extras.join('/') : undefined
+  ].filter(Boolean).join(' | ');
   const drumBlockExpanded=[
     `${t('wizard.drum.kick')}: ${seq.drums.kick||'-'}`,
     `${t('wizard.drum.hat')}: ${seq.drums.hat||'-'}`,
@@ -211,7 +259,7 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
     `${t('wizard.drum.extras')}: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
   ].join('\n');
   const lines=[
-    `GENRE: ${seq.mainGenre}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
+  `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
     seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
     compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
     seq.instruments.length? `INSTRUMENTS: ${seq.instruments.join(', ')}`:'',
