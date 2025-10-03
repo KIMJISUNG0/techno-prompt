@@ -1,0 +1,75 @@
+{
+  "$schema": "https://example.com/genre.schema.json",
+  "version": "1.0.0",
+  "groups": [
+    {
+      "id": "edm",
+      "label": "EDM",
+      "leaves": [
+        { "id": "house_deep", "label": "Deep House", "bpm": "115-124", "time": "4/4",
+          "must_instruments": ["kick", "bass", "piano/keys"], "tags": ["warm", "groovy", "laid-back"],
+          "avoid": ["aggressive saw lead", "dubstep wobble"], "desc": "warm, mellow house with deep bass." },
+        { "id": "techno_detroit", "label": "Detroit Techno", "bpm": "125-132", "time": "4/4",
+          "must_instruments": ["909/808 drums", "analog bass", "poly synth"], "tags": ["machine", "driving"],
+          "avoid": ["big-room risers", "EDM festival snare"], "desc": "machine-soul, minimal harmony." },
+        { "id": "trance_progressive", "label": "Progressive Trance", "bpm": "128-134", "time": "4/4",
+          "must_instruments": ["supersaw pad", "sidechain pad", "arp"], "tags": ["uplifting", "wide"],
+          "avoid": ["dirty distortion", "trap hats"], "desc": "layered pads, evolving arp." }
+      ]
+    },
+    {
+      "id": "hiphop",
+      "label": "Hip Hop",
+      "leaves": [
+        { "id": "lofi", "label": "Lo-fi Hip Hop", "bpm": "70-92", "time": "4/4",
+          "must_instruments": ["drum kit(boom-bap)", "upright/e-bass", "keys"], "tags": ["nostalgic", "warm"],
+          "avoid": ["glossy saw lead", "EDM sidechain"], "desc": "dusty drums, vinyl hiss optional." },
+        { "id": "trap", "label": "Trap", "bpm": "130-150", "time": "4/4(halftime feel)",
+          "must_instruments": ["808 bass", "hi-hats rolls", "snare/clap"], "tags": ["dark", "bouncy"],
+          "avoid": ["acoustic drum swing"], "desc": "808 focused, sparse melody." }
+      ]
+    },
+    {
+      "id": "pop",
+      "label": "Pop",
+      "leaves": [
+        { "id": "synthpop_80s", "label": "80s Synthpop", "bpm": "100-118", "time": "4/4",
+          "must_instruments": ["poly synth", "chorus guitar", "electro drums"], "tags": ["neon", "nostalgic"],
+          "avoid": ["trap 808", "metal guitars"], "desc": "glossy retro hooks." }
+      ]
+    },
+    {
+      "id": "rock",
+      "label": "Rock",
+      "leaves": [
+        { "id": "alt_rock", "label": "Alternative Rock", "bpm": "90-140", "time": "4/4",
+          "must_instruments": ["drums", "bass", "electric guitar"], "tags": ["band", "energetic"],
+          "avoid": ["EDM risers"], "desc": "band-driven, mid-forward guitars." }
+      ]
+    },
+    {
+      "id": "cinematic",
+      "label": "Cinematic",
+      "leaves": [
+        { "id": "ambient_scores", "label": "Ambient Score", "bpm": "free/50-80", "time": "free/4/4",
+          "must_instruments": ["strings/pads", "piano", "textures"], "tags": ["atmospheric", "slow-bloom"],
+          "avoid": ["busy drums"], "desc": "texture-first, long tails." }
+      ]
+    },
+    {
+      "id": "classical",
+      "label": "Classical",
+      "leaves": [
+        { "id": "baroque", "label": "Baroque", "bpm": "60-120", "time": "3/4 or 4/4",
+          "must_instruments": ["strings", "harpsichord(optional)"], "tags": ["ornamented", "counterpoint"],
+          "avoid": ["modern drum kit"], "desc": "counterpoint, terraced dynamics." }
+      ]
+    }
+  ],
+  "hybrid": {
+    "max": 2,
+    "rule": "서로 다른 group의 leaf만 조합",
+    "blend_fields": ["tags", "bpm", "must_instruments"],
+    "conflict_policy": "bpm은 교집합, must_instruments는 합집합-중복제거, avoid는 합집합"
+  }
+}
