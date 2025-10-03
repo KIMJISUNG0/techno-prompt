@@ -306,7 +306,23 @@ export default function MultiGenrePromptWizard(){
         <BpmTimeStep genre={state.genre} presets={GENRE_BPM_PRESETS[state.genre]||GENRE_BPM_PRESETS[GENRE_ALIASES[state.genre]]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('genre')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
       {state.mode==='classic' && state.step==='build' && state.schema && <BuildStep state={state} onBack={()=> backTo('bpmTime')} accentBtn={accentBtn} accentGhost={accentGhost} />}
       {/* Sequential Mode */}
-  {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep rootCategory={state.seq.rootCategory} setRootCategory={(root)=> setState(s=>({...s,seq:{...s.seq,rootCategory:root}}))} onSelect={(g)=>{ selectGenre(g); const variants=GENRE_STYLE_VARIANTS[g]; if(variants&&variants.length) setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreStyle'})); else setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreSubs'})); }} />}
+  {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep
+    rootCategory={state.seq.rootCategory}
+    setRootCategory={(root)=> setState(s=>({...s,seq:{...s.seq,rootCategory:root}}))}
+    onSelect={(g)=>{
+      // 기본 장르 선택 (sequential 모드 초기화)
+      // selectGenre 는 beginner/pro 공통으로 mainGenre 설정 + seq.genreSubs 로 이동
+      // PRO 모드 + 스타일 변형 존재 시에만 style 단계로 분기
+      const variants=GENRE_STYLE_VARIANTS[g];
+      if(state.proMode && variants && variants.length){
+        // 직접 설정 (selectGenre 에서 즉시 subs 로 이동하므로 이 경우 직접 override)
+        setState(s=>({...s,seq:{...s.seq,mainGenre:g,subGenres:[]},step:'seq.genreStyle'}));
+      } else {
+        // Beginner 모드 또는 변형 없음 → 바로 Sub 선택 단계
+        setState(s=>({...s,seq:{...s.seq,mainGenre:g,subGenres:[]},step:'seq.genreSubs'}));
+      }
+    }}
+  />}
   {isSeq && state.step==='seq.genreStyle' && state.seq.mainGenre && <GenreStyleStep genre={state.seq.mainGenre} variants={GENRE_STYLE_VARIANTS[state.seq.mainGenre]||[]} onPick={(variant)=> setState(s=>({...s,seq:{...s.seq,styleVariant:variant},step:'seq.genreSubs'}))} onSkip={()=> setState(s=>({...s,seq:{...s.seq,styleVariant:undefined},step:'seq.genreSubs'}))} />}
       {isSeq && state.step==='seq.genreSubs' && <GenreSubsStep state={state} onDone={(subs)=> setState(s=>({...s,seq:{...s.seq,subGenres:subs},step:'seq.tempo'}))} />}
       {isSeq && state.step==='seq.tempo' && state.seq.mainGenre && (()=> {
