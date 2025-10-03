@@ -46,7 +46,12 @@ function useThemeMode() {
 }
 
 function RootChooser() {
-  const hash = window.location.hash;
+  const [hash, setHash] = React.useState(window.location.hash);
+  React.useEffect(()=> {
+    const onHash = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   if (hash.includes('live-test')) return <TestPlayground />;
   if (hash.includes('stack')) return <StackComposerWizard />; // experimental step-by-step layer composer
   if (hash.includes('quick')) return <QuickComposer />; // new intent-first quick composer
