@@ -58,13 +58,7 @@ Chain assembled in `toneBridge` with flexible ordering.
 - Acceptable for now; can be cleaned in a lint hygiene pass.
 
 ## 10. Potential Backlog / Next Steps
-- Add system theme auto-switch listener (prefers-color-scheme change events) when user hasn't overridden.
-- Improve per-instrument envelope realism (piano partial decay shaping, guitar damping).
-- Add pattern polymeter support (independent pattern lengths) in Tone bridge.
-- Provide export: MIDI / JSON pattern pack.
-- Accessibility pass (ARIA labels, contrast audit for light mode).
-- Performance: Worklet-based analyser for lower UI thread load.
-- Add tests for pattern parser & FX spec builder.
+- UI Palette Refactor: Replaced multi‑color per‑genre gradients with a unified charcoal/grayscale system to increase visual consistency and reduce chromatic noise. Introduced CSS design tokens (gray scale, accent, focus ring) in `index.css`. All genre themes now map to a neutral gradient while functionality (prompt logic, BPM variant adjustments) remains unchanged.
 
 ## 11. Rehydration Prompt (for new chat)
 Paste the following into a new session to restore context:
