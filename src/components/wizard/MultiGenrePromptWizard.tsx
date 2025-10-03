@@ -46,17 +46,26 @@ const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;ra
   cinematic:{default:110,low:90,high:130,range:[80,140]},
   pop:{default:118,low:100,high:124,range:[96,126]},
   punk:{default:168,low:150,high:190,range:[140,200]},
+  kpop:{default:122,low:118,high:126,range:[112,130]},
+  synthwave:{default:90,low:84,high:94,range:[80,100]},
+  futuregarage:{default:132,low:126,high:136,range:[120,140]},
+  reggaeton:{default:96,low:90,high:100,range:[86,104]},
+  afrobeat:{default:108,low:100,high:114,range:[96,118]},
+  jazzfusion:{default:128,low:110,high:140,range:[100,150]},
 };
 
 // Root genre categories (high-level) mapping to available packs
 const ROOT_GENRE_CATEGORIES:{id:string;label:string;genres:GenreId[]}[]=[
-  {id:'edm',label:'EDM / Electronic',genres:['techno','techhouse','house','trance','dubstep','dnb'] as GenreId[]},
-  {id:'urban',label:'Urban / HipHop',genres:['hiphop','boomBap','trap','lofiBeats','rnb'] as GenreId[]},
+  {id:'edm',label:'EDM / Electronic',genres:['techno','techhouse','house','trance','dubstep','dnb','futuregarage'] as GenreId[]},
+  {id:'urban',label:'Urban / HipHop',genres:['hiphop','boomBap','trap','lofiBeats','rnb','reggaeton','kpop'] as GenreId[]},
+  {id:'global',label:'Global / World',genres:['afrobeat','reggaeton'] as GenreId[]},
   {id:'soul',label:'R&B / Soul',genres:['rnb'] as GenreId[]},
   {id:'country',label:'Country / Americana',genres:['country'] as GenreId[]},
-  {id:'citypop',label:'City Pop / Fusion',genres:['citypop','pop'] as GenreId[]},
+  {id:'retro',label:'Retro / Synth',genres:['synthwave','citypop'] as GenreId[]},
+  {id:'citypop',label:'City Pop / Fusion',genres:['citypop','pop','jazzfusion'] as GenreId[]},
+  {id:'fusion',label:'Fusion / Jazz',genres:['jazzfusion'] as GenreId[]},
   {id:'cinematic',label:'Cinematic / Score',genres:['cinematic','orchestral','ambient'] as GenreId[]},
-  {id:'pop',label:'Pop / Mainstream',genres:['pop'] as GenreId[]},
+  {id:'pop',label:'Pop / Mainstream',genres:['pop','kpop'] as GenreId[]},
   {id:'punk',label:'Punk / Alt',genres:['punk'] as GenreId[]}
 ];
 
@@ -99,6 +108,42 @@ const GENRE_STYLE_VARIANTS:Record<string,{label:string;delta?:number;desc?:strin
     {label:'Classic Country',delta:0,desc:'Traditional instrumentation'},
     {label:'Americana',delta:-2,desc:'Roots organic tone'},
     {label:'Outlaw',delta:+4,desc:'Edgy driving energy'}
+  ],
+  kpop:[
+    {label:'Anthemic',delta:+2,desc:'Big stadium energy'},
+    {label:'Moody',delta:-4,desc:'Darker restrained vibe'},
+    {label:'EDM Hybrid',delta:+4,desc:'Stronger dance drop feel'},
+    {label:'R&B Hybrid',delta:-2,desc:'Softer smooth influence'}
+  ],
+  synthwave:[
+    {label:'Dark Synth',delta:-4,desc:'Brooding low-end weight'},
+    {label:'Outrun',delta:+2,desc:'Driving neon motion'},
+    {label:'Dreamwave',delta:-6,desc:'Hazy nostalgic float'},
+    {label:'Cyberwave',delta:+4,desc:'Sharper futuristic edge'}
+  ],
+  futuregarage:[
+    {label:'Atmospheric',delta:-4,desc:'More space & reverb'},
+    {label:'Club Hybrid',delta:+4,desc:'Push toward dance tempo'},
+    {label:'Ambient Garage',delta:-6,desc:'Very spacious + airy'},
+    {label:'Vocal Chops',delta:0,desc:'Emphasis on chopped vox'}
+  ],
+  reggaeton:[
+    {label:'Pop Reggaeton',delta:+2,desc:'Mainstream sheen'},
+    {label:'Afro-Latin Fusion',delta:0,desc:'Broader rhythmic blend'},
+    {label:'Dark Reggaeton',delta:-2,desc:'Darker minimal texture'},
+    {label:'EDM Crossover',delta:+4,desc:'Higher energy build'}
+  ],
+  afrobeat:[
+    {label:'Afropop',delta:+2,desc:'Pop oriented polish'},
+    {label:'Highlife Fusion',delta:0,desc:'Traditional guitar blend'},
+    {label:'Chill Afro',delta:-4,desc:'Relaxed groove focus'},
+    {label:'Afro House Hybrid',delta:+6,desc:'Dancefloor uplift'}
+  ],
+  jazzfusion:[
+    {label:'Smooth Fusion',delta:-6,desc:'Laid back phrasing'},
+    {label:'Prog Fusion',delta:+6,desc:'Complex rhythmic drive'},
+    {label:'Latin Fusion',delta:+4,desc:'Latin rhythmic layer'},
+    {label:'Electro Fusion',delta:+2,desc:'Synth textures added'}
   ],
   citypop:[
     {label:'80s Fusion',delta:0,desc:'Authentic retro palette'},

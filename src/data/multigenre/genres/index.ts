@@ -16,6 +16,12 @@ import { punkPack } from './punk';
 import { rnbPack } from './rnb';
 import { countryPack } from './country';
 import { cityPopPack } from './citypop';
+import { kpopPack } from './kpop';
+import { synthwavePack } from './synthwave';
+import { futureGaragePack } from './futuregarage';
+import { reggaetonPack } from './reggaeton';
+import { afrobeatPack } from './afrobeat';
+import { jazzFusionPack } from './jazzfusion';
 import type { GenrePack } from '../schema';
 
 const ALL_PACKS: GenrePack[] = [
@@ -37,6 +43,12 @@ const ALL_PACKS: GenrePack[] = [
   rnbPack,
   countryPack,
   cityPopPack,
+  kpopPack,
+  synthwavePack,
+  futureGaragePack,
+  reggaetonPack,
+  afrobeatPack,
+  jazzFusionPack,
 ];
 
 // DEV 모드에서 특정 장르만 로딩하여 초기 빌드/리프레시 속도 향상.
