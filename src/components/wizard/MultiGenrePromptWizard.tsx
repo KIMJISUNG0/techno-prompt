@@ -44,6 +44,7 @@ const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;ra
   orchestral:{default:120,low:90,high:130,range:[70,140]},
   cinematic:{default:110,low:90,high:130,range:[80,140]},
   pop:{default:118,low:100,high:124,range:[96,126]},
+  punk:{default:168,low:150,high:190,range:[140,200]},
 };
 
 // Root genre categories (high-level) mapping to available packs
@@ -51,7 +52,8 @@ const ROOT_GENRE_CATEGORIES:{id:string;label:string;genres:GenreId[]}[]=[
   {id:'edm',label:'EDM / Electronic',genres:['techno','techhouse','house','trance','dubstep','dnb'] as GenreId[]},
   {id:'urban',label:'Urban / HipHop',genres:['hiphop','boomBap','trap','lofiBeats'] as GenreId[]},
   {id:'cinematic',label:'Cinematic / Score',genres:['cinematic','orchestral','ambient'] as GenreId[]},
-  {id:'pop',label:'Pop / Mainstream',genres:['pop'] as GenreId[]}
+  {id:'pop',label:'Pop / Mainstream',genres:['pop'] as GenreId[]},
+  {id:'punk',label:'Punk / Alt',genres:['punk'] as GenreId[]}
 ];
 
 // Style variants per core genre with BPM adjustment deltas (affects default only)
@@ -73,6 +75,15 @@ const GENRE_STYLE_VARIANTS:Record<string,{label:string;delta?:number;desc?:strin
   trap:[{label:'EDM Trap',delta:0},{label:'Dark Trap',delta:0}],
   pop:[{label:'Dance Pop',delta:+2},{label:'Electro Pop',delta:+4},{label:'Indie Pop',delta:-2}],
   cinematic:[{label:'Epic',delta:0},{label:'Hybrid',delta:0},{label:'Ambient Score',delta:-10}],
+  punk:[
+    {label:'Classic Punk',delta:0,desc:'Raw mid-tempo energy'},
+    {label:'Hardcore Punk',delta:+20,desc:'Faster aggressive tempo'},
+    {label:'Skate Punk',delta:+10,desc:'Driving upbeat feel'},
+    {label:'Pop Punk',delta:+6,desc:'Melodic catchy edge'},
+    {label:'Post-Punk',delta:-6,desc:'Moody rhythmic space'},
+    {label:'Neo-Punk',delta:+4,desc:'Modern hybrid textures'},
+    {label:'Garage Punk',delta:0,desc:'Lo-fi raw garage tone'}
+  ],
 };
 
 // Instrument variant library (fine-grained tags per family)

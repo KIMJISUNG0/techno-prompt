@@ -12,6 +12,7 @@ import { trapPack } from './trap';
 import { lofiBeatsPack } from './lofibeats';
 import { popPack } from './pop';
 import { cinematicPack } from './cinematic';
+import { punkPack } from './punk';
 import type { GenrePack } from '../schema';
 
 const ALL_PACKS: GenrePack[] = [
@@ -29,6 +30,7 @@ const ALL_PACKS: GenrePack[] = [
   orchestralPack,
   cinematicPack,
   popPack,
+  punkPack,
 ];
 
 // DEV 모드에서 특정 장르만 로딩하여 초기 빌드/리프레시 속도 향상.
