@@ -195,9 +195,9 @@ export default function MelodyRecorder({ onResult }: Props) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs uppercase tracking-widest text-cyan-200">Melody Recorder</h3>
-        {permission==='idle' && <button onClick={requestPermission} className="px-2 py-1 text-[11px] rounded border border-slate-600 hover:border-cyan-400">Grant Mic</button>}
-        {permission==='granted' && !recording && <button onClick={start} className="px-2 py-1 text-[11px] rounded border border-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20">Record</button>}
+  <h3 className="text-xs uppercase tracking-widest text-slate-300">Melody Recorder</h3>
+  {permission==='idle' && <button onClick={requestPermission} className="px-2 py-1 text-[11px] rounded border border-slate-600 hover:border-slate-400">Grant Mic</button>}
+  {permission==='granted' && !recording && <button onClick={start} className="px-2 py-1 text-[11px] rounded border border-slate-400 bg-white/5 hover:bg-white/10">Record</button>}
         {recording && <button onClick={stop} className="px-2 py-1 text-[11px] rounded border border-pink-400 bg-pink-500/10 hover:bg-pink-500/20">Stop</button>}
       </div>
       <div className="h-20 relative">
@@ -211,8 +211,8 @@ export default function MelodyRecorder({ onResult }: Props) {
       {(pitchHz || medianPitch) && (
         <div className="text-[11px] mt-1 rounded bg-black/40 border border-slate-600 p-2 flex flex-col gap-2">
           <div className="flex flex-wrap gap-3">
-            <span className="text-cyan-300">Main Pitch: {pitchHz? pitchHz.toFixed(2)+' Hz':'—'}</span>
-            <span className="text-fuchsia-300">Median: {medianPitch? medianPitch.toFixed(2)+' Hz':'—'} ({medianNote||'—'})</span>
+            <span className="text-slate-300">Main Pitch: {pitchHz? pitchHz.toFixed(2)+' Hz':'—'}</span>
+            <span className="text-slate-400">Median: {medianPitch? medianPitch.toFixed(2)+' Hz':'—'} ({medianNote||'—'})</span>
             <span className="text-amber-300">Key Guess: {keyGuess || '?'}</span>
             <span className="text-teal-300">Stability: {stability!=null? (stability*100).toFixed(0)+'%':'—'}</span>
           </div>

@@ -2,10 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global Dark Glass + Background */
+/* Global Dark Glass + Background (neutralized) */
+:root {
+	/* Neutral charcoal grayscale palette tokens */
+	--gray-950: #0d0f12;
+	--gray-900: #14171c;
+	--gray-850: #191d23;
+	--gray-800: #1f242b;
+	--gray-750: #262c35;
+	--gray-700: #2e353f;
+	--gray-600: #3c4552;
+	--gray-500: #566272;
+	--gray-400: #738095;
+	--gray-300: #9aa6b5;
+	--gray-200: #c2cbd5;
+	--gray-150: #d4dbe3;
+	--gray-100: #e4e9ef;
+	--gray-050: #f5f7fa;
+	--accent: #9fb4c5;
+	--accent-strong: #c3d4e0;
+	--focus-ring: #6e8aa3;
+	--bg-radial: radial-gradient(circle at 20% 25%, var(--gray-850) 0%, var(--gray-950) 60%, #05070d 100%);
+	--panel-glass: rgba(255,255,255,0.04);
+	--panel-border: rgba(255,255,255,0.07);
+	--panel-border-strong: rgba(255,255,255,0.12);
+	--text-primary: #e2e7ec;
+	--text-secondary: #9aa8b9;
+	--text-faint: #5e6b78;
+}
+
 html, body, #root {
-	background: radial-gradient(circle at 20% 25%, #0d1724 0%, #05070d 60%, #03040a 100%);
+	background: var(--bg-radial);
 	min-height:100%;
+	color:var(--text-primary);
 }
 
 body::before {
@@ -20,37 +49,38 @@ body::before {
 
 .glass-card {
 	position:relative;
-	background:rgba(255,255,255,0.05);
+	background:var(--panel-glass);
 	backdrop-filter: blur(10px) saturate(150%);
 	-webkit-backdrop-filter: blur(10px) saturate(150%);
-	border:1px solid rgba(255,255,255,0.08);
-	box-shadow:0 4px 14px -6px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+	border:1px solid var(--panel-border);
+	box-shadow:0 4px 14px -6px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(255,255,255,0.04);
 	border-radius:16px;
 }
 
-/* Bubble Button (iOS style) */
+/* Bubble Button (neutral) */
 .bubble-btn {
 	position:relative; overflow:hidden; border-radius:9999px;
-	padding:0.55rem 1.05rem; font-size:11px; letter-spacing:.4px;
-	border:1px solid rgba(255,255,255,0.15);
+	padding:0.55rem 1.05rem; font-size:11px; letter-spacing:.4px; font-weight:500;
+	border:1px solid var(--panel-border);
 	background:
-		radial-gradient(at 35% 30%, rgba(255,255,255,0.25), rgba(255,255,255,0) 60%),
-		linear-gradient(140deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+		radial-gradient(at 35% 30%, rgba(255,255,255,0.18), rgba(255,255,255,0) 60%),
+		linear-gradient(140deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
 	backdrop-filter: blur(12px) saturate(160%);
 	-webkit-backdrop-filter: blur(12px) saturate(160%);
-	box-shadow:0 4px 12px -4px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.08);
+	box-shadow:0 4px 12px -4px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05), inset 0 0 0 1px rgba(255,255,255,0.07);
 	transition:background .35s ease, transform .3s ease, box-shadow .45s ease, color .3s;
-	color:#e3f6ff;
+	color:var(--text-secondary);
 }
-.bubble-btn[data-variant="primary"]{ color:#08222b; font-weight:600; }
+.bubble-btn[data-variant="primary"]{ color:#101418; font-weight:600; background:linear-gradient(to bottom,var(--gray-300),var(--gray-150)); border-color:var(--gray-300); }
 .bubble-btn:hover {
 	background:
-		radial-gradient(at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.35), rgba(255,255,255,0) 65%),
-		linear-gradient(140deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05));
-	box-shadow:0 6px 18px -6px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.12);
+		radial-gradient(at var(--mx,50%) var(--my,50%), rgba(255,255,255,0.28), rgba(255,255,255,0) 65%),
+		linear-gradient(140deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
+	box-shadow:0 6px 18px -6px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.11), inset 0 0 0 1px rgba(255,255,255,0.11);
+	color:var(--accent-strong);
 }
 .bubble-btn:active { transform:scale(.96); }
-.bubble-btn:focus-visible { outline:2px solid rgba(134,239,255,0.6); outline-offset:2px; }
+.bubble-btn:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
 .bubble-btn.ripple-anim::before {
 	content:""; position:absolute; width:14px; height:14px; border-radius:50%;
 	left:calc(var(--mx,50%) - 7px); top:calc(var(--my,50%) - 7px);
@@ -77,17 +107,18 @@ body::before {
 	--ios-depth-shadow: 0 4px 10px -4px rgba(0,0,0,0.55), 0 6px 22px -10px rgba(0,0,0,0.8);
 }
 
+
 .ios-bubble {
 	position:relative; isolation:isolate; user-select:none;
 	border-radius:22px; padding:0.75rem 1rem; font-size:12px; font-weight:500; letter-spacing:.35px;
 	background:
 		var(--ios-sheen),
-		linear-gradient(145deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05));
+		linear-gradient(145deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05));
 	backdrop-filter:blur(18px) saturate(170%) contrast(110%);
 	-webkit-backdrop-filter:blur(18px) saturate(170%) contrast(110%);
 	border:1px solid rgba(255,255,255,0.22);
 	box-shadow:var(--ios-depth-shadow), inset 0 0 0 1px rgba(255,255,255,0.12);
-	color:#e6faff; display:inline-flex; align-items:center; gap:.55rem; cursor:pointer;
+	color:var(--text-secondary); display:inline-flex; align-items:center; gap:.55rem; cursor:pointer;
 	transition:box-shadow .45s ease, background .4s ease, transform .35s ease;
 }
 .ios-bubble::after { /* dynamic chroma ring */
@@ -98,7 +129,7 @@ body::before {
 	-webkit-mask-composite:xor; mask-composite:exclude;
 	opacity:.35; filter:blur(4px); transition:opacity .4s;
 }
-.ios-bubble[data-variant="accent"]{ color:#061c22; font-weight:600; }
+.ios-bubble[data-variant="accent"]{ color:#11171d; font-weight:600; background:linear-gradient(to bottom,var(--gray-300),var(--gray-150)); }
 .ios-bubble:hover { box-shadow:0 6px 26px -8px rgba(0,200,255,0.55), 0 0 0 1px rgba(255,255,255,0.35), inset 0 0 0 1px rgba(255,255,255,0.18); }
 .ios-bubble:hover::after { opacity:.65; }
 .ios-bubble:active { transform:translateY(1px) scale(.985); }
@@ -114,7 +145,7 @@ body::before {
 	-webkit-backdrop-filter:blur(20px) saturate(180%);
 	border:1px solid rgba(255,255,255,0.25);
 	box-shadow:0 6px 24px -8px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.18), inset 0 0 0 1px rgba(255,255,255,0.28);
-	color:#f2fbff; cursor:pointer; transition:transform .4s cubic-bezier(.22,.68,.37,1), box-shadow .5s, background .5s;
+	color:var(--text-secondary); cursor:pointer; transition:transform .4s cubic-bezier(.22,.68,.37,1), box-shadow .5s, background .5s;
 }
 .ios-pill::before { /* moving liquid aura */
 	content:""; position:absolute; inset:0; border-radius:inherit; mix-blend-mode:overlay; pointer-events:none;

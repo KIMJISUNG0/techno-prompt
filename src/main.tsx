@@ -60,12 +60,12 @@ function AppShell() {
   return (
     <div className={"min-h-screen flex flex-col " + (mode==='dark' ? 'app-dark-root' : 'bg-slate-100') }>
       <nav className={(mode==='dark' ? 'app-dark-nav ' : 'bg-white/70 backdrop-blur border-slate-200 ') + "border-b flex gap-4 px-4 py-2 text-xs tracking-wide items-center"}>
-        <button onClick={()=> (window as any).resetGenre?.()} className={mode==='dark' ? 'text-slate-400 hover:text-cyan-300' : 'text-slate-600 hover:text-cyan-700'}>Genres</button>
+  <button onClick={()=> (window as any).resetGenre?.()} className={mode==='dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-800'}>Genres</button>
         <span className={mode==='dark' ? 'text-slate-600' : 'text-slate-400'}>|</span>
         <span className={mode==='dark' ? 'text-slate-500' : 'text-slate-500'}>Mode:</span>
-        <a href="#composer" className={mode==='dark' ? 'text-cyan-300 hover:underline' : 'text-cyan-700 hover:underline'}>Composer</a>
-        <a href="#legacy" className={mode==='dark' ? 'text-cyan-300 hover:underline' : 'text-cyan-700 hover:underline'}>Legacy Techno</a>
-        <a href="#live-test" className={mode==='dark' ? 'text-fuchsia-300 hover:underline' : 'text-fuchsia-600 hover:underline'}>Live Test</a>
+  <a href="#composer" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Composer</a>
+  <a href="#legacy" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Legacy Techno</a>
+  <a href="#live-test" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Live Test</a>
         <div className="flex-1" />
         <div onClick={toggle} className="theme-toggle" data-mode={mode} role="button" aria-label="Toggle dark / light theme">
           <span className="tt-ico" aria-hidden>{mode==='dark' ? '🌙' : '☀️'}</span>

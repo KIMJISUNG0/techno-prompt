@@ -192,18 +192,21 @@ export default function MultiGenrePromptWizard(){
   function backTo(step:ClassicWizardStep|SeqStep){ setState(s=>({...s,step})); }
 
   // theming / style tokens
-  const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
+  const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30';
+  // Neutral palette: primary -> subtle light surface, ghost -> border only
+  const accentPrimary='bg-slate-300 text-slate-900 font-semibold border-slate-300 hover:bg-slate-200 hover:brightness-110';
+  const accentGhost='border-slate-600 hover:border-slate-400 hover:bg-white/5 text-slate-300';
   const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
   const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
-    <div className={`w-full min-h-screen app-dark-root text-slate-100 px-6 py-8 ${activeTheme.glow}`} style={secondTheme? {['--g1-from' as any]:extractFirstColor(activeTheme.gradient),['--g1-via' as any]:extractMiddleColor(activeTheme.gradient),['--g2-to' as any]:extractLastColor(secondTheme.gradient)}:undefined}>
+    <div className={`w-full min-h-screen app-dark-root text-slate-200 px-6 py-8 ${activeTheme.glow}`} style={secondTheme? {['--g1-from' as any]:extractFirstColor(activeTheme.gradient),['--g1-via' as any]:extractMiddleColor(activeTheme.gradient),['--g2-to' as any]:extractLastColor(secondTheme.gradient)}:undefined}>
       <header className="mb-8 flex items-center justify-between">
-  <h1 className={`text-lg font-semibold tracking-widest bg-clip-text text-transparent bg-gradient-to-r ${hybridGradient}`}>{t('wizard.title')}{secondTheme? (isKorean()? ' • '+t('wizard.hybrid'):' • HYBRID'):''}</h1>
+  <h1 className={`text-lg font-semibold tracking-widest text-slate-300`}>{t('wizard.title')}{secondTheme? (isKorean()? ' • '+t('wizard.hybrid'):' • HYBRID'):''}</h1>
         <div className="flex gap-2 items-center">
-          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.genrePrimary'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
+          <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.genrePrimary'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-slate-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
           {state.mode==='classic' && state.step!=='genre' && <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>}
-          {isSeq && progressIndex>0 && <button onClick={()=> backTo(seqSteps[Math.max(0,progressIndex-1)])} className="px-2 py-1 text-xs rounded border border-slate-600 hover:border-cyan-400">Prev</button>}
+          {isSeq && progressIndex>0 && <button onClick={()=> backTo(seqSteps[Math.max(0,progressIndex-1)])} className="px-2 py-1 text-xs rounded border border-slate-600 hover:border-slate-400">Prev</button>}
         </div>
       </header>
       {isSeq && (
@@ -230,10 +233,10 @@ export default function MultiGenrePromptWizard(){
                 key={st}
                 onClick={()=> backTo(st)}
                 title={tooltip||undefined}
-                className={`relative px-2 py-1 rounded border transition ${on? 'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-700 hover:border-cyan-400 text-slate-400'} ${completedIndex&&!on?'opacity-90':''}`}
+                className={`relative px-2 py-1 rounded border transition ${on? 'border-slate-400 text-slate-200 bg-white/5':'border-slate-700 hover:border-slate-500 text-slate-400'} ${completedIndex&&!on?'opacity-90':''}`}
               >
                 {st.replace('seq.','').replace(/\./g,'›')}
-                {completedIndex && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-400 shadow-[0_0_4px_#0ff]" />}
+                {completedIndex && <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-slate-400 shadow-[0_0_4px_rgba(148,163,184,0.7)]" />}
               </button>
             );
           })}
