@@ -34,7 +34,10 @@ export default function SimpleComposer(){
       const roleWords = coreRoles.map(r => main.roles[r] || '').filter(Boolean).map(d => d.split(/\s+/).slice(0,2).join(' '));
       const uniqueRoleWords = Array.from(new Set(roleWords)).slice(0,5).join(', ');
       const prompt = `Generate a ${normalized.moods[0]} ${normalized.useCase||''} electronic track (intensity ${normalized.intensity}/5) ~${totalBars} bars. Sections: intro→build→drop→main→break→main→outro. Emphasize ${uniqueRoleWords}.`;
-      setResult({ prompt, serialized: ser, bars: totalBars });
+  const pack = { prompt, serialized: ser, bars: totalBars };
+  setResult(pack);
+  // Quick 모드로 넘길 수 있도록 전역 핸드오프 변수 저장
+  (window as any).__simpleDraft = { serialized: ser, intent: normalized };
       // Live sync 이벤트도 동일하게 발행해 패턴 구독 컴포넌트 공유
       try { window.dispatchEvent(new CustomEvent('draft.patterns.update', { detail: draftToPatterns(draft) })); } catch {/* silent */}
       setLoading(false);
@@ -71,7 +74,10 @@ export default function SimpleComposer(){
       </div>
       <div className="flex gap-3 items-center">
         <button disabled={loading} onClick={generate} className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:pointer-events-none text-xs tracking-wide uppercase">{loading? 'Generating...' : 'Generate'}</button>
-        <a href="#quick" className="text-sky-400 text-xs hover:underline">Go Advanced →</a>
+        <a href="#quick" className="text-sky-400 text-xs hover:underline" onClick={()=> {
+          // 아직 생성 안했다면 자동 생성 후 이동 (UX 가속)
+          if(!result){ generate(); setTimeout(()=> { window.location.hash = '#quick'; }, 0); return; }
+        }}>Go Advanced →</a>
       </div>
       {result && (
         <div className="space-y-3">
@@ -81,6 +87,7 @@ export default function SimpleComposer(){
             <div className="flex gap-2 mt-2">
               <button onClick={()=> copy(result.prompt)} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs">Copy Prompt</button>
               <button onClick={()=> copy(result.serialized)} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs">Copy Structure</button>
+              <button onClick={()=> { window.location.hash = '#quick'; }} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-xs text-white">Edit in Quick →</button>
             </div>
           </div>
           <details className="bg-slate-900/40 rounded border border-slate-700 p-3">

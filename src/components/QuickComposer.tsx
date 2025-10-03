@@ -39,6 +39,21 @@ export default function QuickComposer() {
   const [undoStack, setUndoStack] = useState<string[]>([]);
   const [redoStack, setRedoStack] = useState<string[]>([]);
 
+  // Simple Mode handoff: 최초 마운트 때 전역에 남아있는 __simpleDraft 가져와 자동 파싱
+  React.useEffect(()=> {
+    const handoff = (window as any).__simpleDraft;
+    if (!draft && handoff?.serialized) {
+      const parsed = parseDraft(handoff.serialized);
+      if (parsed) {
+        setDraft(parsed as any);
+        setSerialized(handoff.serialized);
+        setLog([{ note: 'Imported from Simple Mode', serialized: handoff.serialized, ts: Date.now() }]);
+        setQuality(evaluateDraft(parsed as any));
+        dispatchPatterns(parsed);
+      }
+    }
+  }, []);
+
   // Build intent object
   const intent: IntentInput = useMemo(() => ({
     moods: moodsRaw.split(/[,\n]/).map(m=> m.trim()).filter(Boolean),
