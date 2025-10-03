@@ -173,6 +173,10 @@ const INSTRUMENT_VARIANTS:Record<string,string[]>= {
   chip:['pulse lead','arp tri','noise perc']
 };
 
+// Shared pools reused in both pro and beginner modes
+const ROLE_TONE_POOL = ['warm','bright','dark','crisp','gritty','smooth','airy','punchy','rounded'];
+const BEGINNER_VIBE_TAGS = ['warm','wide','punchy','airy','dark','vintage','modern','clean','gritty'];
+
 // Pro vs Beginner: proMode=true exposes full granular steps, false collapses to a shorter path.
 const PRO_SEQ_STEPS:SeqStep[]=['seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
 const BEGINNER_SEQ_STEPS:SeqStep[]=['seq.genrePrimary','seq.genreSubs','seq.tempo','seq.instruments','seq.final'];
@@ -326,12 +330,21 @@ export default function MultiGenrePromptWizard(){
       {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
       {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
     {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.snare')} />}
-  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step: state.proMode? 'seq.instrumentVariants':'seq.final'}))} onBack={()=> backTo(state.proMode? 'seq.drum.extras':'seq.tempo')} />}
+  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep
+      proMode={state.proMode}
+      selected={state.seq.instruments}
+      roles={state.seq.roles}
+      mixTags={state.seq.mixTags}
+      onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))}
+      onUpdateRoles={(roles)=> setState(s=>({...s,seq:{...s.seq,roles}}))}
+      onUpdateVibes={(vibes)=> setState(s=>({...s,seq:{...s.seq,mixTags:vibes}}))}
+      onNext={()=> setState(s=>({...s,step: state.proMode? 'seq.instrumentVariants':'seq.final'}))}
+      onBack={()=> backTo(state.proMode? 'seq.drum.extras':'seq.tempo')} />}
   {isSeq && state.step==='seq.instrumentVariants' && <InstrumentVariantStep selectedFamilies={state.seq.instruments} variants={state.seq.instrumentVariants} onChange={(fam,vals)=> setState(s=>({...s,seq:{...s.seq, instrumentVariants:{...s.seq.instrumentVariants,[fam]:vals}}}))} onNext={()=> setState(s=>({...s,step:'seq.roles'}))} onBack={()=> backTo('seq.instruments')} />}
   {isSeq && state.step==='seq.roles' && <RolesStep roles={state.seq.roles} onChange={(r)=> setState(s=>({...s,seq:{...s.seq,roles:r}}))} onNext={()=> setState(s=>({...s,step:'seq.fx'}))} onBack={()=> backTo('seq.instrumentVariants')} />}
   {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.roles')} />}
       {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
-  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{bass:{},chords:{},lead:{}}, fxTags:[], mixTags:[], durationSec:210 }, step:'seq.genrePrimary'}))} />}
+  {isSeq && state.step==='seq.final' && <FinalSeqSummary proMode={state.proMode} seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{bass:{},chords:{},lead:{}}, fxTags:[], mixTags:[], durationSec:210 }, step:'seq.genrePrimary'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
       <LiveCodingDock />
     </div>
@@ -432,10 +445,15 @@ function LiveCodingDock(){ const [open,setOpen]=useState(false); const [hover,se
 // --- Extended injected overrides (instrument step + prompt aggregation) ---
 // DrumSummaryStep removed (drum details only appear in final summary now)
 
-function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selected:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void }){
+function InstrumentCategoryStep({ proMode, selected, onChange, onNext, onBack, roles, onUpdateRoles, mixTags, onUpdateVibes }:{ proMode:boolean; selected:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void; roles:{bass:RoleConfig;chords:RoleConfig;lead:RoleConfig}; onUpdateRoles:(r:{bass:RoleConfig;chords:RoleConfig;lead:RoleConfig})=>void; mixTags:string[]; onUpdateVibes:(v:string[])=>void }){
+  function toggleRoleTone(role:'bass'|'chords'|'lead', tone:string){ const cur=roles[role].tone; onUpdateRoles({...roles,[role]:{...roles[role],tone: cur===tone? undefined: tone}} as any); }
+  function toggleVibe(tag:string){ onUpdateVibes(mixTags.includes(tag)? mixTags.filter(t=> t!==tag): [...mixTags,tag]); }
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.instrumentFamilies')}</h2>
+    <div className="max-w-6xl mx-auto space-y-8">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.instrumentFamilies')}</h2>
+        {!proMode && <span className="text-[10px] text-slate-500">Beginner: add instruments & basic feel</span>}
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {INSTRUMENT_CATEGORIES.map(cat=> { const on=selected.includes(cat.id); return (
           <button
@@ -449,6 +467,29 @@ function InstrumentCategoryStep({ selected, onChange, onNext, onBack }:{ selecte
           </button>
         ); })}
       </div>
+      {!proMode && (
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="space-y-3">
+            <div className="text-[11px] uppercase tracking-wider text-cyan-300">Core Roles Tone</div>
+            <div className="space-y-4">
+              {(['bass','chords','lead'] as const).map(r=> (
+                <div key={r} className="space-y-1">
+                  <div className="text-[10px] text-slate-500">{r.toUpperCase()}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {ROLE_TONE_POOL.map(tn=> { const on=roles[r].tone===tn; return <button key={tn} onClick={()=> toggleRoleTone(r,tn)} className={`px-2 py-1 rounded border text-[10px] ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{tn}</button>; })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="text-[11px] uppercase tracking-wider text-cyan-300">Overall Vibe</div>
+            <div className="flex flex-wrap gap-2">
+              {BEGINNER_VIBE_TAGS.map(tag=> { const on=mixTags.includes(tag); return <button key={tag} onClick={()=> toggleVibe(tag)} className={`px-2 py-1 rounded border text-[10px] ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{tag}</button>; })}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex justify-between text-xs">
         <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
         <div className="flex gap-2 items-center">
@@ -491,7 +532,7 @@ function InstrumentVariantStep({ selectedFamilies, variants, onChange, onNext, o
 }
 
 // Override final summary to include instruments
-function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestart:()=>void }){
+function FinalSeqSummary({ seq, onRestart, proMode }:{ seq:SequentialBuildState; onRestart:()=>void; proMode?:boolean }){
   const [compact,setCompact]=useState(false);
   const drumBlockCompact=[
     seq.drums.kick? 'K:'+seq.drums.kick:undefined,
@@ -510,25 +551,36 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
     const v = seq.instrumentVariants[f];
     return v && v.length ? `${f}(${v.slice(0,4).join('/')})` : f;
   }).join(', ') : '';
-  const lines=[
-    `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
-    seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
-  seq.durationSec? `DURATION: ${Math.floor(seq.durationSec/60)}:${(seq.durationSec%60).toString().padStart(2,'0')}`:'',
-    compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
-    variantDetail? `INSTRUMENTS: ${variantDetail}`:'',
-  seq.roles.bass.tone||seq.roles.bass.brightness? `BASS: ${[seq.roles.bass.tone, seq.roles.bass.brightness].filter(Boolean).join(' | ')}`:'',
-  seq.roles.chords.tone||seq.roles.chords.brightness? `CHORDS: ${[seq.roles.chords.tone, seq.roles.chords.brightness].filter(Boolean).join(' | ')}`:'',
-  seq.roles.lead.tone||seq.roles.lead.brightness? `LEAD: ${[seq.roles.lead.tone, seq.roles.lead.brightness].filter(Boolean).join(' | ')}`:'',
-    seq.fxTags.length? 'FX: '+seq.fxTags.join(', '):'',
-    seq.mixTags.length? 'MIX: '+seq.mixTags.join(', '):''
-  ].filter(Boolean).join('\n');
+  let lines:string;
+  if(proMode){
+    lines=[
+      `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
+      seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
+      seq.durationSec? `DURATION: ${Math.floor(seq.durationSec/60)}:${(seq.durationSec%60).toString().padStart(2,'0')}`:'',
+      compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
+      variantDetail? `INSTRUMENTS: ${variantDetail}`:'',
+      seq.roles.bass.tone||seq.roles.bass.brightness? `BASS: ${[seq.roles.bass.tone, seq.roles.bass.brightness].filter(Boolean).join(' | ')}`:'',
+      seq.roles.chords.tone||seq.roles.chords.brightness? `CHORDS: ${[seq.roles.chords.tone, seq.roles.chords.brightness].filter(Boolean).join(' | ')}`:'',
+      seq.roles.lead.tone||seq.roles.lead.brightness? `LEAD: ${[seq.roles.lead.tone, seq.roles.lead.brightness].filter(Boolean).join(' | ')}`:'',
+      seq.fxTags.length? 'FX: '+seq.fxTags.join(', '):'',
+      seq.mixTags.length? 'MIX: '+seq.mixTags.join(', '):''
+    ].filter(Boolean).join('\n');
+  } else {
+    // Beginner: concise summary
+    lines=[
+      `GENRE: ${seq.mainGenre}${seq.styleVariant? ' • '+seq.styleVariant:''}${seq.subGenres.length?' + '+seq.subGenres.join('/') : ''}`,
+      seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}`:'',
+      variantDetail? `INSTRUMENTS: ${variantDetail}`:'',
+      seq.mixTags.length? 'VIBE: '+seq.mixTags.slice(0,6).join(', '):''
+    ].filter(Boolean).join('\n');
+  }
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.finalSummary')}</h2>
         <button onClick={()=> setCompact(c=>!c)} className="px-2 py-1 text-[10px] rounded border border-slate-600 hover:border-cyan-400 text-slate-400 hover:text-cyan-200">{compact? t('wizard.view.expanded'): t('wizard.view.compact')}</button>
       </div>
-      <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre>
+  <pre className="text-[11px] bg-black/40 border border-slate-700 rounded p-3 whitespace-pre-wrap leading-relaxed">{lines}</pre>
       <div className="flex justify-between text-xs">
         <button onClick={onRestart} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.restart')}</button>
         <button onClick={()=> navigator.clipboard.writeText(lines)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">{t('buttons.copy')}</button>
