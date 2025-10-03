@@ -153,6 +153,35 @@ const GENRE_STYLE_VARIANTS:Record<string,{label:string;delta?:number;desc?:strin
   ]
 };
 
+// --- Related sub-genre recommendations (used in seq.genreSubs) ---
+// 기본 매핑: 주 장르 선택 시 자주 혼합되거나 인접 스타일 제안
+const GENRE_RELATED: Record<GenreId, GenreId[]> = {
+  techno:['techhouse','house','trance','dubstep'],
+  techhouse:['techno','house','afrobeat','pop'],
+  house:['techhouse','techno','pop','citypop'],
+  trance:['techno','house','synthwave'],
+  dubstep:['trap','futuregarage','dnb'],
+  dnb:['futuregarage','dubstep','hiphop'],
+  futuregarage:['ambient','dnb','dubstep'],
+  hiphop:['boomBap','trap','lofiBeats','rnb'],
+  boomBap:['hiphop','lofiBeats','jazzfusion'],
+  trap:['hiphop','lofiBeats','rnb'],
+  lofiBeats:['hiphop','boomBap','jazzfusion'],
+  ambient:['cinematic','orchestral','futuregarage'],
+  orchestral:['cinematic','ambient'],
+  cinematic:['orchestral','ambient','synthwave'],
+  pop:['kpop','rnb','citypop'],
+  punk:['pop','techno'],
+  kpop:['pop','hiphop','rnb'],
+  afrobeat:['reggaeton','house','pop'],
+  jazzfusion:['citypop','lofiBeats','rnb'],
+  reggaeton:['afrobeat','pop','hiphop'],
+  rnb:['hiphop','pop','jazzfusion'],
+  country:['pop','citypop'],
+  citypop:['jazzfusion','pop','synthwave'],
+  synthwave:['citypop','trance','pop']
+};
+
 // Instrument variant library (fine-grained tags per family)
 const INSTRUMENT_VARIANTS:Record<string,string[]>= {
   piano:['felt','upright','grand bright','lofi processed','electric keys'],
@@ -408,7 +437,42 @@ function GenreStyleStep({ genre: _genre, variants, onPick, onSkip }:{ genre:Genr
     </div>
   );
 }
-function GenreSubsStep({ state, onDone }:{ state:WizardState; onDone:(subs:GenreId[])=>void }){ const packs=GENRE_PACKS.filter(p=> p.id!==state.seq.mainGenre); const [local,setLocal]=useState<GenreId[]>(state.seq.subGenres); return (<div className="max-w-3xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">Add Sub Genres (Optional)</h2><div className="flex flex-wrap gap-2">{packs.map(p=> { const on=local.includes(p.id); return <button key={p.id} onClick={()=> setLocal(l=> on? l.filter(x=> x!==p.id):[...l,p.id])} className={`px-3 py-1 rounded border text-xs ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{p.label}</button>; })}</div><div className="flex justify-end gap-2 text-xs"><button onClick={()=> onDone(local)} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Continue</button></div></div>); }
+function GenreSubsStep({ state, onDone }:{ state:WizardState; onDone:(subs:GenreId[])=>void }){
+  const allPacks=GENRE_PACKS.filter(p=> p.id!==state.seq.mainGenre);
+  const related = state.seq.mainGenre ? (GENRE_RELATED[state.seq.mainGenre]||[]) : [];
+  const [showAll,setShowAll]=useState(false);
+  const visible = showAll? allPacks: allPacks.filter(p=> related.includes(p.id as GenreId));
+  const [local,setLocal]=useState<GenreId[]>(state.seq.subGenres);
+  // 사용자가 Show All 전환 시 이미 선택했던 것들 유지
+  const noneRelated = !showAll && visible.length===0;
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">Add Sub Genres (Optional)</h2>
+      {related.length>0 && (
+        <div className="text-[10px] text-slate-500 flex items-center gap-3">
+          <span>Recommended based on {state.seq.mainGenre}</span>
+          <button onClick={()=> setShowAll(s=>!s)} className="px-2 py-[2px] rounded border border-slate-600 hover:border-cyan-400 text-[10px]">
+            {showAll? 'Show Recommended':'Show All'}
+          </button>
+        </div>
+      )}
+      {noneRelated && <div className="text-[11px] text-slate-500">No curated related genres yet. Toggle "Show All" to pick any.</div>}
+      <div className="flex flex-wrap gap-2">
+        {visible.map(p=> { const on=local.includes(p.id); return (
+          <button
+            key={p.id}
+            onClick={()=> setLocal(l=> on? l.filter(x=> x!==p.id):[...l,p.id])}
+            className={`px-3 py-1 rounded border text-xs ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}
+          >{p.label}</button>
+        ); })}
+        {visible.length===0 && showAll && <div className="text-[11px] text-slate-500">No genres available.</div>}
+      </div>
+      <div className="flex justify-end gap-2 text-xs">
+        <button onClick={()=> onDone(local)} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">Continue</button>
+      </div>
+    </div>
+  );
+}
 function DrumPickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const base=['punchy','deep','analog','distorted','tight','airy']; const ext=['saturated','round','clicky','subby','crisp','woody']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.select',{label})}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button></div></div>); }
 function DrumExtrasStep({ extras, onChange, onNext, onBack }:{ extras:string[]; onChange:(a:string[])=>void; onNext:()=>void; onBack:()=>void }){ const base=['clap','shaker','rim','tom','ride']; const ext=['cowbell','snap','clave','bongo','conga','fx noise']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.extraPerc')}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=extras.includes(o); return <button key={o} onClick={()=> onChange(on? extras.filter(x=> x!==o):[...extras,o])} className={`px-3 py-1 rounded border text-xs ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button></div></div>); }
 // (original DrumSummaryStep removed; override version defined later)
