@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { buildDefaultDraft, serializeDraft, parseDraft } from '../../prompt/sectionDsl';
+import ProgressiveComposer from '../ProgressiveComposer';
 import { exportPrompt } from '../../prompt/promptExport';
 import { draftToPatterns } from '../../prompt/patternMap';
 import { clampIntensity } from '../../intent/types';
@@ -272,6 +273,8 @@ export default function GenrePortal({ onPick, allowHybrid=true, maxHybrid=2 }: G
             )}
           </div>
         )}
+        {/* Progressive Composer */}
+        <ProgressiveComposer />
       </div>
     </div>
   );
