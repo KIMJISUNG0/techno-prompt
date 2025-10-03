@@ -141,7 +141,8 @@ export default function GenrePortal({ onPick, allowHybrid=true, maxHybrid=2 }: G
   const accentPrimary = 'bg-slate-300 text-slate-900 font-semibold border-slate-300 hover:bg-slate-200';
   const hybridActive = hybrid.length===2;
   // --- Arranger Panel State --------------------------------------------------
-  const [showArranger, setShowArranger] = useState(false);
+  // Arranger 패널 항상 표시 (토글 제거)
+  const showArranger = true;
   const [arrangerMoods, setArrangerMoods] = useState('dark, hypnotic');
   const [arrangerIntensity, setArrangerIntensity] = useState(4);
   const [arrangerUseCase, setArrangerUseCase] = useState('club');
@@ -197,7 +198,6 @@ export default function GenrePortal({ onPick, allowHybrid=true, maxHybrid=2 }: G
                 {hybrid.length>0 && <button onClick={()=> commitPick(hybrid)} className={`${accentBtn} ${accentPrimary}`}>Go</button>}
               </div>
             )}
-            <button onClick={()=> setShowArranger(s=> !s)} className={`${accentBtn} ${accentGhost}`}>{showArranger? 'Hide Arranger':'Arranger'}</button>
           </div>
         </div>
         {recent.length>0 && path.length===0 && (

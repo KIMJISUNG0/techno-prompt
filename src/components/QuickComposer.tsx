@@ -191,14 +191,14 @@ export default function QuickComposer() {
           <p className="text-[11px] text-slate-500 mt-1">Step 1: Enter minimal intent. Step 2: Pick a recommended genre. Step 3: Generate draft & refine with slash commands.</p>
         </div>
         <div className="flex gap-2 text-xs">
-          <button onClick={resetAll} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Reset</button>
+          <button onClick={resetAll} className="ios-bubble">Reset</button>
           {draft && <>
-            <button onClick={()=> navigator.clipboard.writeText(serialized)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy Draft</button>
-            <button onClick={()=> draft && navigator.clipboard.writeText(exportPrompt(draft))} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">Copy Prompt</button>
-            <button onClick={saveVariation} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Save Var</button>
-            <button onClick={undo} disabled={!undoStack.length} className={`px-3 py-1 rounded border text-slate-300 ${undoStack.length? 'border-slate-600 hover:border-cyan-400':'border-slate-800 text-slate-600 cursor-not-allowed'}`}>Undo</button>
-            <button onClick={redo} disabled={!redoStack.length} className={`px-3 py-1 rounded border text-slate-300 ${redoStack.length? 'border-slate-600 hover:border-cyan-400':'border-slate-800 text-slate-600 cursor-not-allowed'}`}>Redo</button>
-            <button onClick={exportStub} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Export Stub</button>
+            <button onClick={()=> navigator.clipboard.writeText(serialized)} className="ios-bubble" data-variant="accent">Copy Draft</button>
+            <button onClick={()=> draft && navigator.clipboard.writeText(exportPrompt(draft))} className="ios-bubble">Copy Prompt</button>
+            <button onClick={saveVariation} className="ios-bubble">Save Var</button>
+            <button onClick={undo} disabled={!undoStack.length} className={`ios-bubble ${!undoStack.length? 'opacity-40 cursor-not-allowed':''}`}>Undo</button>
+            <button onClick={redo} disabled={!redoStack.length} className={`ios-bubble ${!redoStack.length? 'opacity-40 cursor-not-allowed':''}`}>Redo</button>
+            <button onClick={exportStub} className="ios-bubble">Export Stub</button>
           </>}
         </div>
       </header>
@@ -341,7 +341,7 @@ export default function QuickComposer() {
             <div className="text-[10px] text-slate-500">Examples: /brighten • /punch • /raise intro_0 drop_2 • /replace find=dark replace=bright</div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid xl:grid-cols-3 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Serialized Draft</h3>
@@ -381,6 +381,15 @@ export default function QuickComposer() {
                   </div>
                 </div>
               )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[11px] uppercase tracking-wider text-slate-400">Live Prompt Preview</h3>
+                <button onClick={()=> draft && navigator.clipboard.writeText(exportPrompt(draft))} className="px-2 py-[3px] rounded border border-slate-600 hover:border-cyan-400 text-[10px] text-slate-300">Copy</button>
+              </div>
+              <div className="text-[10px] leading-relaxed bg-black/50 border border-slate-700 rounded p-2 max-h-72 overflow-auto whitespace-pre-wrap">
+                {draft ? exportPrompt(draft) : '—'}
+              </div>
             </div>
           </div>
         </section>

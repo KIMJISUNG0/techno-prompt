@@ -68,15 +68,17 @@ function AppShell() {
   const { mode, toggle } = useThemeMode();
   return (
     <div className={"min-h-screen flex flex-col " + (mode==='dark' ? 'app-dark-root' : 'bg-slate-100') }>
-      <nav className={(mode==='dark' ? 'app-dark-nav ' : 'bg-white/70 backdrop-blur border-slate-200 ') + "border-b flex gap-4 px-4 py-2 text-xs tracking-wide items-center"}>
-  <button onClick={()=> (window as any).resetGenre?.()} className={mode==='dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-800'}>Genres</button>
-        <span className={mode==='dark' ? 'text-slate-600' : 'text-slate-400'}>|</span>
-        <span className={mode==='dark' ? 'text-slate-500' : 'text-slate-500'}>Mode:</span>
-  <a href="#quick" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Quick</a>
-  <a href="#simple" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Simple</a>
-  <a href="#composer" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Composer</a>
-  <a href="#legacy" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Legacy Techno</a>
-  <a href="#live-test" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Live Test</a>
+  <nav className={(mode==='dark' ? 'app-dark-nav ' : 'bg-white/70 backdrop-blur border-slate-200 ') + "border-b flex gap-3 px-4 py-2 text-xs tracking-wide items-center"}>
+  <button onClick={()=> (window as any).resetGenre?.()} className="ios-bubble">Genres</button>
+    <span className="text-slate-600">|</span>
+    <div className="flex gap-2 items-center">
+      <span className="text-slate-500">Mode:</span>
+      <a href="#quick" className="ios-bubble">Quick</a>
+      <a href="#simple" className="ios-bubble">Simple</a>
+      <a href="#composer" className="ios-bubble">Composer</a>
+      <a href="#legacy" className="ios-bubble">Legacy Techno</a>
+      <a href="#live-test" className="ios-bubble">Live Test</a>
+    </div>
         <div className="flex-1" />
         <div onClick={toggle} className="theme-toggle" data-mode={mode} role="button" aria-label="Toggle dark / light theme">
           <span className="tt-ico" aria-hidden>{mode==='dark' ? '🌙' : '☀️'}</span>

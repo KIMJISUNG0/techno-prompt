@@ -73,8 +73,8 @@ export default function SimpleComposer(){
         </label>
       </div>
       <div className="flex gap-3 items-center">
-        <button disabled={loading} onClick={generate} className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-50 disabled:pointer-events-none text-xs tracking-wide uppercase">{loading? 'Generating...' : 'Generate'}</button>
-        <a href="#quick" className="text-sky-400 text-xs hover:underline" onClick={()=> {
+        <button disabled={loading} onClick={generate} className="ios-bubble" data-variant="accent">{loading? 'Generating...' : 'Generate'}</button>
+        <a href="#quick" className="ios-bubble" onClick={()=> {
           // 아직 생성 안했다면 자동 생성 후 이동 (UX 가속)
           if(!result){ generate(); setTimeout(()=> { window.location.hash = '#quick'; }, 0); return; }
         }}>Go Advanced →</a>
@@ -85,9 +85,9 @@ export default function SimpleComposer(){
             <div className="font-semibold mb-1">Basic Prompt</div>
             <textarea readOnly value={result.prompt} className="w-full bg-slate-900 border border-slate-700 rounded p-2 h-28 text-xs font-mono" />
             <div className="flex gap-2 mt-2">
-              <button onClick={()=> copy(result.prompt)} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs">Copy Prompt</button>
-              <button onClick={()=> copy(result.serialized)} className="px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs">Copy Structure</button>
-              <button onClick={()=> { window.location.hash = '#quick'; }} className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 rounded text-xs text-white">Edit in Quick →</button>
+              <button onClick={()=> copy(result.prompt)} className="ios-bubble">Copy Prompt</button>
+              <button onClick={()=> copy(result.serialized)} className="ios-bubble">Copy Structure</button>
+              <button onClick={()=> { window.location.hash = '#quick'; }} className="ios-bubble" data-variant="accent">Edit in Quick →</button>
             </div>
           </div>
           <details className="bg-slate-900/40 rounded border border-slate-700 p-3">
