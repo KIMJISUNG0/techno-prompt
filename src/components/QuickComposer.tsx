@@ -178,14 +178,14 @@ export default function QuickComposer() {
           <p className="text-[11px] text-slate-500 mt-1">Step 1: Enter minimal intent. Step 2: Pick a recommended genre. Step 3: Generate draft & refine with slash commands.</p>
         </div>
         <div className="flex gap-2 text-xs">
-          <button onClick={resetAll} className="ios-bubble">Reset</button>
+          <button onClick={resetAll} className="btn">Reset</button>
           {draft && <>
-            <button onClick={()=> navigator.clipboard.writeText(serialized)} className="ios-bubble" data-variant="accent">Copy Draft</button>
-            <button onClick={()=> draft && navigator.clipboard.writeText(exportPrompt(draft))} className="ios-bubble">Copy Prompt</button>
-            <button onClick={saveVariation} className="ios-bubble">Save Var</button>
-            <button onClick={undo} disabled={!undoStack.length} className={`ios-bubble ${!undoStack.length? 'opacity-40 cursor-not-allowed':''}`}>Undo</button>
-            <button onClick={redo} disabled={!redoStack.length} className={`ios-bubble ${!redoStack.length? 'opacity-40 cursor-not-allowed':''}`}>Redo</button>
-            <button onClick={exportStub} className="ios-bubble">Export Stub</button>
+            <button onClick={()=> navigator.clipboard.writeText(serialized)} className="btn btn-accent">Copy Draft</button>
+            <button onClick={()=> draft && navigator.clipboard.writeText(exportPrompt(draft))} className="btn">Copy Prompt</button>
+            <button onClick={saveVariation} className="btn">Save Var</button>
+            <button onClick={undo} disabled={!undoStack.length} className={`btn ${!undoStack.length? 'opacity-40 cursor-not-allowed':''}`}>Undo</button>
+            <button onClick={redo} disabled={!redoStack.length} className={`btn ${!redoStack.length? 'opacity-40 cursor-not-allowed':''}`}>Redo</button>
+            <button onClick={exportStub} className="btn">Export Stub</button>
           </>}
         </div>
       </header>

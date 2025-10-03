@@ -39,9 +39,9 @@ export default function ProgressiveComposer(){
         </div>
         <div className="flex-1" />
         <div className="flex gap-2 text-[11px] items-center">
-          <button onClick={reset} className="ios-bubble">Reset</button>
-          <button onClick={()=> setMode(m=> m==='rich'?'compact':'rich')} className="ios-bubble">Mode: {mode}</button>
-          <button onClick={()=> navigator.clipboard.writeText(prompt)} className="ios-bubble" data-variant="accent">Copy Prompt</button>
+          <button onClick={reset} className="btn">Reset</button>
+          <button onClick={()=> setMode(m=> m==='rich'?'compact':'rich')} className="btn">Mode: {mode}</button>
+          <button onClick={()=> navigator.clipboard.writeText(prompt)} className="btn btn-accent">Copy Prompt</button>
         </div>
       </header>
       <section className="space-y-4">
@@ -54,13 +54,13 @@ export default function ProgressiveComposer(){
             const on = picked.includes(tok.id);
             const isHint = nextHints.includes(tok.id); // rarely true (hints from previous maybe)
             return (
-              <button key={tok.id} onClick={()=> toggle(tok.id)} title={tok.hint || ''} className={`ios-bubble text-[11px] ${on? 'border border-cyan-400 bg-cyan-600/10 text-cyan-200':''} ${isHint && !on? 'ring-1 ring-cyan-500/40':''}`}>{tok.label}</button>
+              <button key={tok.id} onClick={()=> toggle(tok.id)} title={tok.hint || ''} className={`btn text-[11px] ${on? 'border-cyan-400 text-cyan-200 bg-cyan-600/20':''} ${isHint && !on? 'ring-1 ring-cyan-500/40':''}`}>{tok.label}</button>
             );
           })}
         </div>
         <div className="flex gap-3 text-[11px] pt-2">
-          <button disabled={step===0} onClick={prev} className={`ios-bubble ${step===0? 'opacity-30 cursor-not-allowed':''}`}>Prev</button>
-          <button disabled={step===categories.length-1} onClick={next} className={`ios-bubble ${step===categories.length-1? 'opacity-30 cursor-not-allowed':''}`}>Next</button>
+          <button disabled={step===0} onClick={prev} className={`btn ${step===0? 'opacity-30 cursor-not-allowed':''}`}>Prev</button>
+          <button disabled={step===categories.length-1} onClick={next} className={`btn ${step===categories.length-1? 'opacity-30 cursor-not-allowed':''}`}>Next</button>
         </div>
       </section>
       <section className="space-y-2">

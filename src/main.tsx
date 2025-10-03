@@ -68,13 +68,13 @@ function AppShell() {
   return (
     <div className={"min-h-screen flex flex-col " + (mode==='dark' ? 'app-dark-root' : 'bg-slate-100') }>
   <nav className={(mode==='dark' ? 'app-dark-nav ' : 'bg-white/70 backdrop-blur border-slate-200 ') + "border-b flex gap-3 px-4 py-2 text-xs tracking-wide items-center"}>
-  <button onClick={()=> (window as any).resetGenre?.()} className="ios-bubble">Genres</button>
+  <button onClick={()=> (window as any).resetGenre?.()} className="btn">Genres</button>
     <span className="text-slate-600">|</span>
     <div className="flex gap-2 items-center">
       <span className="text-slate-500">Mode:</span>
-      <a href="#quick" className="ios-bubble">Quick</a>
-      <a href="#composer" className="ios-bubble">Composer</a>
-      <a href="#live-test" className="ios-bubble">Live Test</a>
+  <a href="#quick" className="btn">Quick</a>
+  <a href="#composer" className="btn">Composer</a>
+  <a href="#live-test" className="btn">Live Test</a>
     </div>
         <div className="flex-1" />
         <div onClick={toggle} className="theme-toggle" data-mode={mode} role="button" aria-label="Toggle dark / light theme">
