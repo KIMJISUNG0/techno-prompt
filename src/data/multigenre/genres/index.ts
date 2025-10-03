@@ -13,6 +13,9 @@ import { lofiBeatsPack } from './lofibeats';
 import { popPack } from './pop';
 import { cinematicPack } from './cinematic';
 import { punkPack } from './punk';
+import { rnbPack } from './rnb';
+import { countryPack } from './country';
+import { cityPopPack } from './citypop';
 import type { GenrePack } from '../schema';
 
 const ALL_PACKS: GenrePack[] = [
@@ -31,6 +34,9 @@ const ALL_PACKS: GenrePack[] = [
   cinematicPack,
   popPack,
   punkPack,
+  rnbPack,
+  countryPack,
+  cityPopPack,
 ];
 
 // DEV 모드에서 특정 장르만 로딩하여 초기 빌드/리프레시 속도 향상.

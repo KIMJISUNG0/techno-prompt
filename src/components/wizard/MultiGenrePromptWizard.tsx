@@ -22,8 +22,9 @@ function colorTokenToCss(t:string){ return COLOR_MAP[t]||'#22d3ee'; }
 
 // ------------- types -------------
 export type ClassicWizardStep='genre'|'bpmTime'|'build';
-export type SeqStep='seq.rootCategory'|'seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.instrumentVariants'|'seq.bass'|'seq.chords'|'seq.lead'|'seq.fx'|'seq.mix'|'seq.final';
-interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; instrumentVariants:Record<string,string[]>; bass?:string; chords?:string; lead?:string; fxTags:string[]; mixTags:string[]; }
+export type SeqStep='seq.rootCategory'|'seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.instrumentVariants'|'seq.roles'|'seq.fx'|'seq.mix'|'seq.final';
+interface RoleConfig { tone?:string; brightness?:string; }
+interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; instrumentVariants:Record<string,string[]>; roles: { bass:RoleConfig; chords:RoleConfig; lead:RoleConfig }; fxTags:string[]; mixTags:string[]; }
 interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
 
 // placeholders for alias expansion (future)
@@ -50,7 +51,10 @@ const GENRE_BPM_PRESETS: Record<string,{default:number;low:number;high:number;ra
 // Root genre categories (high-level) mapping to available packs
 const ROOT_GENRE_CATEGORIES:{id:string;label:string;genres:GenreId[]}[]=[
   {id:'edm',label:'EDM / Electronic',genres:['techno','techhouse','house','trance','dubstep','dnb'] as GenreId[]},
-  {id:'urban',label:'Urban / HipHop',genres:['hiphop','boomBap','trap','lofiBeats'] as GenreId[]},
+  {id:'urban',label:'Urban / HipHop',genres:['hiphop','boomBap','trap','lofiBeats','rnb'] as GenreId[]},
+  {id:'soul',label:'R&B / Soul',genres:['rnb'] as GenreId[]},
+  {id:'country',label:'Country / Americana',genres:['country'] as GenreId[]},
+  {id:'citypop',label:'City Pop / Fusion',genres:['citypop','pop'] as GenreId[]},
   {id:'cinematic',label:'Cinematic / Score',genres:['cinematic','orchestral','ambient'] as GenreId[]},
   {id:'pop',label:'Pop / Mainstream',genres:['pop'] as GenreId[]},
   {id:'punk',label:'Punk / Alt',genres:['punk'] as GenreId[]}
@@ -84,6 +88,24 @@ const GENRE_STYLE_VARIANTS:Record<string,{label:string;delta?:number;desc?:strin
     {label:'Neo-Punk',delta:+4,desc:'Modern hybrid textures'},
     {label:'Garage Punk',delta:0,desc:'Lo-fi raw garage tone'}
   ],
+  rnb:[
+    {label:'Neo R&B',delta:0,desc:'Modern atmospheric textures'},
+    {label:'Progressive R&B',delta:+2,desc:'Forward experimental edge'},
+    {label:'Alt R&B',delta:-4,desc:'Moody spacious vibe'},
+    {label:'Classic Soul',delta:0,desc:'Vintage soul influence'}
+  ],
+  country:[
+    {label:'Modern Country Pop',delta:+2,desc:'Polished contemporary feel'},
+    {label:'Classic Country',delta:0,desc:'Traditional instrumentation'},
+    {label:'Americana',delta:-2,desc:'Roots organic tone'},
+    {label:'Outlaw',delta:+4,desc:'Edgy driving energy'}
+  ],
+  citypop:[
+    {label:'80s Fusion',delta:0,desc:'Authentic retro palette'},
+    {label:'Nu-Disco City Pop',delta:+4,desc:'Modern dance influence'},
+    {label:'Vaporwave Fusion',delta:-6,desc:'Hazy nostalgic slowdown'},
+    {label:'Smooth AOR',delta:-2,desc:'Soft rock polish'}
+  ]
 };
 
 // Instrument variant library (fine-grained tags per family)
@@ -107,7 +129,7 @@ const INSTRUMENT_VARIANTS:Record<string,string[]>= {
 };
 
 export default function MultiGenrePromptWizard(){
-  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.rootCategory', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, fxTags:[], mixTags:[] } });
+  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.rootCategory', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{ bass:{}, chords:{}, lead:{} }, fxTags:[], mixTags:[] } });
   const [loading,setLoading]=useState(false);
 
   function selectGenre(g:GenreId){
@@ -126,7 +148,7 @@ export default function MultiGenrePromptWizard(){
 
   // theming / style tokens
   const primaryId= state.mode==='classic'? (state.genres?.[0]||state.genre): state.seq.mainGenre; const secondId= state.mode==='classic'? (state.genres&&state.genres.length===2? state.genres[1]:undefined): undefined; const activeTheme=getGenreTheme(primaryId||'techno'); const secondTheme=secondId? getGenreTheme(secondId):null; const hybridGradient=secondTheme? 'from-[var(--g1-from)] via-[var(--g1-via)] to-[var(--g2-to)]': activeTheme.gradient; const accentBtn='text-xs px-3 py-1 rounded border transition shadow-inner/10 shadow-black/30'; const accentPrimary=`bg-gradient-to-r ${activeTheme.gradient} text-slate-900 font-semibold border-transparent hover:brightness-110`; const accentGhost=`border-slate-600 hover:border-current hover:bg-white/5 ${activeTheme.accent}`;
-  const seqSteps:SeqStep[]=['seq.rootCategory','seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.bass','seq.chords','seq.lead','seq.fx','seq.mix','seq.final'];
+  const seqSteps:SeqStep[]=['seq.rootCategory','seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
   const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
@@ -148,9 +170,13 @@ export default function MultiGenrePromptWizard(){
             if(completedIndex){
               if(st==='seq.drum.extras') tooltip=`DRUMS: ${[state.seq.drums.kick,state.seq.drums.hat,state.seq.drums.snare].filter(Boolean).join(', ')}`;
               else if(st==='seq.instruments' && state.seq.instruments.length) tooltip=`INSTR: ${state.seq.instruments.slice(0,4).join(', ')}${state.seq.instruments.length>4?'…':''}`;
-              else if(st==='seq.bass' && state.seq.bass) tooltip=`BASS: ${state.seq.bass}`;
-              else if(st==='seq.chords' && state.seq.chords) tooltip=`CHORDS: ${state.seq.chords}`;
-              else if(st==='seq.lead' && state.seq.lead) tooltip=`LEAD: ${state.seq.lead}`;
+              else if(st==='seq.roles') {
+                const parts:string[]=[];
+                if(state.seq.roles.bass.tone) parts.push('B:'+state.seq.roles.bass.tone);
+                if(state.seq.roles.chords.tone) parts.push('C:'+state.seq.roles.chords.tone);
+                if(state.seq.roles.lead.tone) parts.push('L:'+state.seq.roles.lead.tone);
+                if(parts.length) tooltip=parts.join(' ');
+              }
               else if(st==='seq.fx' && state.seq.fxTags.length) tooltip=`FX: ${state.seq.fxTags.slice(0,3).join(', ')}${state.seq.fxTags.length>3?'…':''}`;
               else if(st==='seq.mix' && state.seq.mixTags.length) tooltip=`MIX: ${state.seq.mixTags.slice(0,3).join(', ')}${state.seq.mixTags.length>3?'…':''}`;
             }
@@ -178,19 +204,33 @@ export default function MultiGenrePromptWizard(){
   {isSeq && state.step==='seq.genrePrimary' && <GenrePrimaryStep rootCategory={state.seq.rootCategory} onSelect={(g)=>{ selectGenre(g); const variants=GENRE_STYLE_VARIANTS[g]; if(variants&&variants.length) setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreStyle'})); else setState(s=>({...s,seq:{...s.seq,mainGenre:g},step:'seq.genreSubs'})); }} />}
   {isSeq && state.step==='seq.genreStyle' && state.seq.mainGenre && <GenreStyleStep genre={state.seq.mainGenre} variants={GENRE_STYLE_VARIANTS[state.seq.mainGenre]||[]} onPick={(variant)=> setState(s=>({...s,seq:{...s.seq,styleVariant:variant},step:'seq.genreSubs'}))} onSkip={()=> setState(s=>({...s,seq:{...s.seq,styleVariant:undefined},step:'seq.genreSubs'}))} />}
       {isSeq && state.step==='seq.genreSubs' && <GenreSubsStep state={state} onDone={(subs)=> setState(s=>({...s,seq:{...s.seq,subGenres:subs},step:'seq.tempo'}))} />}
-      {isSeq && state.step==='seq.tempo' && state.seq.mainGenre && (<BpmTimeStep genre={state.seq.mainGenre} presets={GENRE_BPM_PRESETS[state.seq.mainGenre]||GENRE_BPM_PRESETS['techno']} onConfirm={confirmBpm} onBack={()=> backTo('seq.genreSubs')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />)}
+      {isSeq && state.step==='seq.tempo' && state.seq.mainGenre && (()=> {
+        const base=GENRE_BPM_PRESETS[state.seq.mainGenre]||GENRE_BPM_PRESETS['techno'];
+        let presets=base;
+        if(state.seq.styleVariant){
+          const variant= (GENRE_STYLE_VARIANTS[state.seq.mainGenre]||[]).find(v=> v.label===state.seq.styleVariant);
+          if(variant && variant.delta){
+            const d=variant.delta;
+            presets={
+              default: base.default + d,
+              low: base.low + Math.round(d*0.5),
+              high: base.high + Math.round(d*0.75),
+              range: [ base.range[0] + Math.round(d*0.25), base.range[1] + Math.round(d*1.0) ] as [number,number]
+            };
+          }
+        }
+        return <BpmTimeStep genre={state.seq.mainGenre} presets={presets} onConfirm={confirmBpm} onBack={()=> backTo('seq.genreSubs')} accentBtn={accentBtn} accentGhost={accentGhost} accentPrimary={accentPrimary} />;
+      })()}
       {isSeq && state.step==='seq.drum.kick' && <DrumPickStep label="Kick" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,kick:val}},step:'seq.drum.hat'}))} onBack={()=> backTo('seq.tempo')} />}
       {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
       {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
     {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.snare')} />}
   {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.instrumentVariants'}))} onBack={()=> backTo('seq.drum.extras')} />}
-  {isSeq && state.step==='seq.instrumentVariants' && <InstrumentVariantStep selectedFamilies={state.seq.instruments} variants={state.seq.instrumentVariants} onChange={(fam,vals)=> setState(s=>({...s,seq:{...s.seq, instrumentVariants:{...s.seq.instrumentVariants,[fam]:vals}}}))} onNext={()=> setState(s=>({...s,step:'seq.bass'}))} onBack={()=> backTo('seq.instruments')} />}
-  {isSeq && state.step==='seq.bass' && <SimplePickStep label="Bass" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,bass:v},step:'seq.chords'}))} onBack={()=> backTo('seq.instrumentVariants')} />}
-      {isSeq && state.step==='seq.chords' && <SimplePickStep label="Chords/Pad" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,chords:v},step:'seq.lead'}))} onBack={()=> backTo('seq.bass')} />}
-      {isSeq && state.step==='seq.lead' && <SimplePickStep label="Lead" onPick={(v)=> setState(s=>({...s,seq:{...s.seq,lead:v},step:'seq.fx'}))} onBack={()=> backTo('seq.chords')} />}
-      {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.lead')} />}
+  {isSeq && state.step==='seq.instrumentVariants' && <InstrumentVariantStep selectedFamilies={state.seq.instruments} variants={state.seq.instrumentVariants} onChange={(fam,vals)=> setState(s=>({...s,seq:{...s.seq, instrumentVariants:{...s.seq.instrumentVariants,[fam]:vals}}}))} onNext={()=> setState(s=>({...s,step:'seq.roles'}))} onBack={()=> backTo('seq.instruments')} />}
+  {isSeq && state.step==='seq.roles' && <RolesStep roles={state.seq.roles} onChange={(r)=> setState(s=>({...s,seq:{...s.seq,roles:r}}))} onNext={()=> setState(s=>({...s,step:'seq.fx'}))} onBack={()=> backTo('seq.instrumentVariants')} />}
+  {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.roles')} />}
       {isSeq && state.step==='seq.mix' && <TagPickStep label="Mix" values={state.seq.mixTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,mixTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.final'}))} onBack={()=> backTo('seq.fx')} />}
-  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, fxTags:[], mixTags:[] }, step:'seq.rootCategory'}))} />}
+  {isSeq && state.step==='seq.final' && <FinalSeqSummary seq={state.seq} onRestart={()=> setState(s=>({...s,seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{bass:{},chords:{},lead:{}}, fxTags:[], mixTags:[] }, step:'seq.rootCategory'}))} />}
       {loading && <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm">Building schema…</div>}
       <LiveCodingDock />
     </div>
@@ -236,8 +276,46 @@ function GenreSubsStep({ state, onDone }:{ state:WizardState; onDone:(subs:Genre
 function DrumPickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const base=['punchy','deep','analog','distorted','tight','airy']; const ext=['saturated','round','clicky','subby','crisp','woody']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.select',{label})}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button></div></div>); }
 function DrumExtrasStep({ extras, onChange, onNext, onBack }:{ extras:string[]; onChange:(a:string[])=>void; onNext:()=>void; onBack:()=>void }){ const base=['clap','shaker','rim','tom','ride']; const ext=['cowbell','snap','clave','bongo','conga','fx noise']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.extraPerc')}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=extras.includes(o); return <button key={o} onClick={()=> onChange(on? extras.filter(x=> x!==o):[...extras,o])} className={`px-3 py-1 rounded border text-xs ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button></div></div>); }
 // (original DrumSummaryStep removed; override version defined later)
-function SimplePickStep({ label, onPick, onBack }:{ label:string; onPick:(v:string)=>void; onBack:()=>void }){ const base=['warm','analog','bright','dark','wide','crisp']; const ext=['glassy','noisy','fat','hollow','plucky','evolving']; const opts=[...base,...ext]; return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{t('wizard.select',{label})}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> <button key={o} onClick={()=> onPick(o)} className="px-3 py-1 rounded border text-xs border-slate-600 hover:border-cyan-400 text-slate-300">{o}</button>)}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button></div></div>); }
 function TagPickStep({ label, values, onChange, onNext, onBack }:{ label:string; values:string[]; onChange:(v:string[])=>void; onNext:()=>void; onBack:()=>void }){ const baseFX=['shimmer','tape delay','grit','modulated','lofi','wide']; const extFX=['granular','reverse','bitcrush','phased','washed','droning']; const baseMix=['tight low-end','airy highs','glue','wide stereo','punchy mid']; const extMix=['forward vocal','balanced','open top','fat center','deep space','dry punch']; const opts= label==='FX'? [...baseFX,...extFX]: [...baseMix,...extMix]; const title= label==='FX'? t('wizard.fxTags'): t('wizard.mixTags'); return (<div className="max-w-xl mx-auto space-y-6"><h2 className="text-sm uppercase tracking-widest text-cyan-300">{title}</h2><div className="flex flex-wrap gap-2">{opts.map(o=> { const on=values.includes(o); return <button key={o} onClick={()=> onChange(on? values.filter(x=> x!==o):[...values,o])} className={`px-3 py-1 rounded border text-xs ${on? 'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{o}</button>; })}</div><div className="flex justify-between text-xs"><button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button><button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button></div></div>); }
+function RolesStep({ roles, onChange, onNext, onBack }:{ roles:{bass:RoleConfig;chords:RoleConfig;lead:RoleConfig}; onChange:(r:{bass:RoleConfig;chords:RoleConfig;lead:RoleConfig})=>void; onNext:()=>void; onBack:()=>void }){
+  const tonePool=['warm','bright','dark','crisp','gritty','smooth','airy','punchy','rounded'];
+  const brightnessPool=['subdued','balanced','forward','shimmering'];
+  function update(role:'bass'|'chords'|'lead', patch:Partial<RoleConfig>){ onChange({...roles,[role]:{...roles[role],...patch}} as any); }
+  function block(label:string, key:'bass'|'chords'|'lead'){
+    const data=roles[key];
+    return (
+      <div className="border border-slate-700 rounded-lg p-3 space-y-3">
+        <div className="text-[11px] uppercase tracking-wider text-cyan-300">{label}</div>
+        <div className="space-y-2">
+          <div className="text-[10px] text-slate-500">Tone</div>
+          <div className="flex flex-wrap gap-1">
+            {tonePool.map(tn=> { const on=data.tone===tn; return <button key={tn} onClick={()=> update(key,{tone:on? undefined:tn})} className={`px-2 py-1 rounded border text-[10px] ${on?'border-emerald-400 text-emerald-200 bg-emerald-600/20':'border-slate-600 text-slate-400 hover:border-emerald-400'}`}>{tn}</button>; })}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-2">Brightness</div>
+          <div className="flex flex-wrap gap-1">
+            {brightnessPool.map(br=> { const on=data.brightness===br; return <button key={br} onClick={()=> update(key,{brightness:on? undefined:br})} className={`px-2 py-1 rounded border text-[10px] ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400'}`}>{br}</button>; })}
+          </div>
+          {(data.tone||data.brightness) && <div className="text-[10px] text-slate-500">Selected: {[data.tone,data.brightness].filter(Boolean).join(' | ')}</div>}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <h2 className="text-sm uppercase tracking-widest text-cyan-300">Core Roles</h2>
+      <p className="text-[11px] text-slate-500">Define tonal character and brightness for each core musical role in a single step.</p>
+      <div className="grid gap-4 md:grid-cols-3">
+        {block('Bass','bass')}
+        {block('Chords / Pad','chords')}
+        {block('Lead / Melody','lead')}
+      </div>
+      <div className="flex justify-between text-xs">
+        <button onClick={onBack} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400">{t('buttons.back')}</button>
+        <button onClick={onNext} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">{t('buttons.continue')}</button>
+      </div>
+    </div>
+  );
+}
 // (original FinalSeqSummary removed; override version defined later)
 function BuildStep({ state, onBack, accentBtn, accentGhost }:{ state:WizardState; onBack:()=>void; accentBtn:string; accentGhost:string }){ const [melodySummary,setMelodySummary]=useState<any|null>(null); const [includeMelody,setIncludeMelody]=useState(true); const [mode,setMode]=useState<'schema'|'instrument'>('schema'); const [pickedProg,setPickedProg]=useState<string|undefined>(); const [compact,setCompact]=useState(false); const recProgs=useMemo(()=> state.genres? recommendProgressions(state.genres,5): state.genre? recommendProgressions([state.genre],5):[], [state.genres,state.genre]); function buildMelodySuffix(){ if(!includeMelody||!melodySummary) return ''; const parts:string[]=[]; if(melodySummary.medianNote) parts.push(`melody centered on ${melodySummary.medianNote}`); if(melodySummary.keyGuess) parts.push(`${melodySummary.keyGuess}`); if(melodySummary.stability!=null) parts.push(`stability ${(melodySummary.stability*100).toFixed(0)}%`); if(melodySummary.scaleCandidates?.length) parts.push(`scales ${melodySummary.scaleCandidates.map((s:any)=> s.scale.split(' ')[0]).slice(0,2).join('/')}`); return parts.join(' | ');} const suffix=buildMelodySuffix(); const genreDescriptions=(state.genres||(state.genre?[state.genre]:[])).map(id=>{const pack=GENRE_PACKS.find(p=> p.id===id); return pack? `${pack.label}: ${pack.description||''}`.trim():null;}).filter(Boolean).join(' | '); const progressionSuffix=useMemo(()=>{ if(!pickedProg) return ''; const f=recProgs.find(p=> p.id===pickedProg); return f? `Progression: ${f.roman}`:''; },[pickedProg,recProgs]); return (<div className="space-y-6"><div className="flex items-center justify-between"><div className="text-xs uppercase tracking-widest text-cyan-300">Build • {state.genre?.toUpperCase()} • {state.bpm} BPM{state.meter&&state.meter!=='4/4'?' ('+state.meter+')':''}{state.swing? ' • Swing '+state.swing+'%':''}</div><button onClick={onBack} className={`${accentBtn} ${accentGhost} text-[11px]`}>Adjust Tempo</button></div><div className="flex gap-3 text-[11px]"><button onClick={()=> setMode('schema')} className={`px-3 py-1 rounded border ${mode==='schema'?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Schema Mode</button><button onClick={()=> setMode('instrument')} className={`px-3 py-1 rounded border ${mode==='instrument'?'border-cyan-400 text-cyan-200 bg-cyan-500/10':'border-slate-600 text-slate-400 hover:border-cyan-400'}`}>Instrument Mode</button>{mode==='schema' && <button onClick={()=> setCompact(c=>!c)} className={`px-3 py-1 rounded border ${compact?'border-emerald-400 text-emerald-200 bg-emerald-600/10':'border-slate-600 text-slate-400 hover:border-emerald-400 hover:text-emerald-200'}`}>{compact? 'Compact ON':'Compact OFF'}</button>}</div><div className="flex items-center gap-3 text-[11px] text-slate-400"><label className="flex items-center gap-1 cursor-pointer select-none"><input type="checkbox" checked={includeMelody} onChange={e=> setIncludeMelody(e.target.checked)} /><span>Include Melody Summary</span></label>{suffix && <span className="text-slate-500 truncate max-w-[420px]">Preview: {suffix}</span>}</div><div className="grid lg:grid-cols-3 gap-6"><div className="lg:col-span-2 space-y-6">{mode==='schema' && state.schema && <SchemaPromptBuilder schema={state.schema} bpm={state.bpm} meter={state.meter} swing={state.swing} extraSuffix={[genreDescriptions,progressionSuffix,suffix].filter(Boolean).join(', ')} compact={compact} />}{mode==='instrument' && <InstrumentPromptBuilder />}</div><div className="lg:col-span-1 space-y-6"><MelodyRecorder onResult={(r)=> setMelodySummary(r)} /><div className="rounded-xl panel-dim p-3 space-y-2"><h4 className="text-[11px] uppercase tracking-wider text-slate-300">Genre Progressions</h4>{recProgs.length===0 && <div className="text-[11px] text-slate-500">No patterns</div>}<div className="flex flex-wrap gap-2">{recProgs.map((p:any)=>{const on=p.id===pickedProg; return <button key={p.id} onClick={()=> setPickedProg(on? undefined:p.id)} className={`px-2 py-1 rounded border text-[10px] transition ${on?'border-fuchsia-400 text-fuchsia-200 bg-fuchsia-600/20':'border-slate-600 text-slate-400 hover:border-fuchsia-400 hover:text-fuchsia-200'}`}>{p.roman}</button>;})}</div>{pickedProg && <div className="text-[10px] text-slate-500">Selected: {recProgs.find((p:any)=> p.id===pickedProg)?.label}</div>}</div></div></div></div>); }
 function LiveCodingDock(){ const [open,setOpen]=useState(false); const [hover,setHover]=useState(false); useEffect(()=>{ function onReq(){ setOpen(true);} window.addEventListener('livecode.requestOpen',onReq as any); function onKey(e:KeyboardEvent){ if((e.metaKey||e.ctrlKey)&&(e.key==='l'||e.key==='L')){ e.preventDefault(); setOpen(o=>!o);} } window.addEventListener('keydown',onKey); return ()=>{ window.removeEventListener('livecode.requestOpen',onReq as any); window.removeEventListener('keydown',onKey); };},[]); return (<><div className={`fixed bottom-6 right-0 z-40 group ${open?'translate-x-0':'translate-x-[calc(100%-52px)]'} transition-transform duration-300`} onMouseEnter={()=> setHover(true)} onMouseLeave={()=> setHover(false)}><div className={`flex items-center gap-2 pl-4 pr-3 py-2 rounded-l-xl shadow-lg border border-r-0 backdrop-blur-md cursor-pointer select-none ${open?'bg-cyan-600/30 border-cyan-500/40':'bg-slate-800/60 border-slate-600/40 hover:bg-slate-700/70'}`} onClick={()=> setOpen(o=>!o)}><span className="text-[11px] tracking-wide text-slate-200">{open?'LIVE CODING':'LIVE'}</span><button onClick={(e)=>{ e.stopPropagation(); setOpen(false);}} className={`text-slate-400 hover:text-cyan-200 text-xs px-1 rounded transition-opacity ${open||hover?'opacity-100':'opacity-0'} focus:opacity-100`} aria-label="Close live coding console">×</button></div></div><div className={`fixed top-0 right-0 h-full w-full sm:w-[640px] z-30 shadow-lg transition-transform duration-300 ${open?'translate-x-0':'translate-x-full'}`}>{open && <LiveCodingConsole onClose={()=> setOpen(false)} />}</div></>); }
@@ -315,10 +393,10 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
     seq.drums.extras.length? 'X:'+seq.drums.extras.join('/') : undefined
   ].filter(Boolean).join(' | ');
   const drumBlockExpanded=[
-    `${t('wizard.drum.kick')}: ${seq.drums.kick||'-'}`,
-    `${t('wizard.drum.hat')}: ${seq.drums.hat||'-'}`,
-    `${t('wizard.drum.snare')}: ${seq.drums.snare||'-'}`,
-    `${t('wizard.drum.extras')}: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
+    `Kick: ${seq.drums.kick||'-'}`,
+    `Hat: ${seq.drums.hat||'-'}`,
+    `Snare: ${seq.drums.snare||'-'}`,
+    `Perc Extras: ${seq.drums.extras.length? seq.drums.extras.join(', '):'-'}`
   ].join('\n');
   // Force English output for Suno compatibility
   const variantDetail = seq.instruments.length ? seq.instruments.map(f=> {
@@ -330,9 +408,9 @@ function FinalSeqSummary({ seq, onRestart }:{ seq:SequentialBuildState; onRestar
     seq.bpm? `TEMPO: ${seq.bpm} BPM ${seq.meter||'4/4'}${seq.swing? ' swing '+seq.swing+'%':''}`:'',
     compact? `DRUMS: ${drumBlockCompact}`: `DRUMS:\n${drumBlockExpanded}`,
     variantDetail? `INSTRUMENTS: ${variantDetail}`:'',
-    seq.bass?`BASS: ${seq.bass}`:'',
-    seq.chords?`CHORDS: ${seq.chords}`:'',
-    seq.lead?`LEAD: ${seq.lead}`:'',
+  seq.roles.bass.tone||seq.roles.bass.brightness? `BASS: ${[seq.roles.bass.tone, seq.roles.bass.brightness].filter(Boolean).join(' | ')}`:'',
+  seq.roles.chords.tone||seq.roles.chords.brightness? `CHORDS: ${[seq.roles.chords.tone, seq.roles.chords.brightness].filter(Boolean).join(' | ')}`:'',
+  seq.roles.lead.tone||seq.roles.lead.brightness? `LEAD: ${[seq.roles.lead.tone, seq.roles.lead.brightness].filter(Boolean).join(' | ')}`:'',
     seq.fxTags.length? 'FX: '+seq.fxTags.join(', '):'',
     seq.mixTags.length? 'MIX: '+seq.mixTags.join(', '):''
   ].filter(Boolean).join('\n');
