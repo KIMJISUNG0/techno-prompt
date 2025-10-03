@@ -9,7 +9,7 @@ Interactive multi-genre music prompt & live coding environment. Provides pattern
 - `src/live/engine.ts`: Custom WebAudio engine. Instruments (kick, snare, hat, bass, lead, pad, guitar, bassGtr, piano, organ, tom, clap, ride). Provides per-instrument play functions, scheduling, sidechain, simple groove.
 - `src/live/toneBridge.ts`: Tone.js integration for pattern scheduling, FX spec interpretation, pattern DSL v2 parsing (notes/rests/hold '_' velocity accents !/?), building Tone instruments/effects.
 - `src/components/LiveCodingConsole.tsx`: In-browser live coding REPL UI exposing API, DSL help, instruments guide.
-- `src/components/wizard/MultiGenrePromptWizard.tsx`: Renamed **Composer**. Multi-genre prompt assembly interface; removed legacy snippet inject buttons & compact banner.
+- `src/components/wizard/MultiGenrePromptWizard.tsx`: Renamed **Composer**. Multi-genre prompt assembly interface (legacy single-techno + simple mode fully deprecated 2025-10-03).
 - `src/components/AudioViz.tsx`: Analyser-driven visualization (spectrum, waveform, peaks, flashes).
 - `src/components/TestPlayground.tsx`: Lightweight sandbox (#live-test route) for rapid pattern + viz testing.
 - `src/main.tsx`: App shell, routing chooser (hash based), theme toggle integration (dark/light), root layout.

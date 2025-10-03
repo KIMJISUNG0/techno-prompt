@@ -1,6 +1,6 @@
-# Techno Prompt Generator
+# Multi-Genre Music Prompt Composer
 
-프롬프트 조합형 Techno 음악 아이디어 생성기 (React + TypeScript + Vite + Tailwind + Framer Motion).
+다장르 음악 프롬프트/패턴 아이디어 생성기 (React + TypeScript + Vite + Tailwind + Framer Motion). 초기 "Legacy Techno" 단일 뷰 및 Simple Mode 는 통합/확장된 Quick & Progressive Composer 로 대체되어 제거되었습니다.
 
 ## 기능
 - 카테고리(서브장르, 리듬, 베이스, 신스, FX 등)별 다중 선택
@@ -103,16 +103,18 @@ GitHub Actions: push/PR 시 validate → build. (추후 lint/typecheck 추가 �
 - Tailwind CSS 3
 - Framer Motion
 
-## 폴더 구조
+## 폴더 구조 (요약)
 ```
 src/
-	main.tsx                # 진입점
-	index.css               # Tailwind import
+	main.tsx            # 진입점 / 해시 라우팅 (quick, composer, live-test 등)
 	components/
-		TechnoPromptGenerator.tsx
-tailwind.config.js
-postcss.config.js
-tsconfig.json
+		QuickComposer.tsx             # 의도(무드/강도/유스케이스) → 구조 Draft → 변형/품질/프롬프트
+		portal/GenrePortal.tsx        # 장르 선택 + Arranger + ProgressiveComposer 통합
+		wizard/MultiGenrePromptWizard.tsx # 기존 Composer (다장르 마법사)
+		ProgressiveComposer.tsx (portal 내부 통합) # 단계별 토큰 선택 프롬프트
+		LiveCodingConsole.tsx         # 라이브 코딩 / 패턴 DSL / 엔진 제어
+		AudioViz.tsx                  # 실시간 분석 시각화
+	prompt/  intent/  live/  data/  progressive/  ...
 ```
 
 ## 구조적 설계 포인트
@@ -256,8 +258,7 @@ https://<host>/#g=techno+trance
 ```
 변경 시 해시 자동 갱신.
 
-Legacy Techno 뷰는 현재:
-1) 기본 포털 → Techno 선택 → Navbar "Legacy Techno" 클릭
+Legacy Techno 단일 전용 뷰와 Simple Mode 는 2025-10-03 기준 제거되었습니다. Quick / Portal Arranger / Progressive Composer 경로를 사용하세요.
 2) (추가 예정) `#g=techno&mode=legacy` 방식 지원 가능
 
 ## Render 배포 가이드
