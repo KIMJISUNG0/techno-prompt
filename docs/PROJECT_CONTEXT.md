@@ -60,6 +60,15 @@ Chain assembled in `toneBridge` with flexible ordering.
 ## 10. Potential Backlog / Next Steps
 - UI Palette Refactor: Replaced multi‑color per‑genre gradients with a unified charcoal/grayscale system to increase visual consistency and reduce chromatic noise. Introduced CSS design tokens (gray scale, accent, focus ring) in `index.css`. All genre themes now map to a neutral gradient while functionality (prompt logic, BPM variant adjustments) remains unchanged.
  - Live Coding: Added microphone capture API (`enableMic/disableMic/setMicGain/getMicAnalyser`) with UI toggle + level meter in `LiveCodingConsole`. Mic routes through master saturation → compressor → analyser so external input participates in FX chain.
+ - Intent-First Architecture (Phase 1 Scaffold): Added `docs/INTENT_MODEL.md` plus core code modules:
+	 - `src/intent/types.ts`: Intent model (moods, useCase, era, intensity, duration) + validation helpers.
+	 - `src/intent/recommend.ts`: Heuristic recommender producing top 3 genre candidates (mood → genre hint mapping + useCase/era/intensity bias).
+	 - `src/prompt/sectionDsl.ts`: Section DSL (AST types, default draft generator, serialize/parse, role seeding heuristics).
+	 - `src/prompt/transforms.ts`: Transform layer (brighten, punch, raise energy, replace, slash command router).
+	 - `src/components/QuickComposer.tsx`: New minimal workflow UI (#quick route) – enter intent → pick recommended genre → auto-generate structural draft → refine via slash commands. Copies serialized draft to clipboard.
+	 - Navigation updated (`main.tsx`) to include Quick link.
+ - Rationale: Reduces multi-step branching of legacy wizard; focuses on minimal expressive input (≈3 fields) delivering a fully structured musical draft (sections + role descriptors) under 90 seconds.
+ - Next (Future Phases, not yet implemented): Variation slots, reversible op log for transforms, section editor UI, quality heuristics (descriptor density / low-end balance), live sync back into engine patterns, export to pattern DSL, mic texture injection toggle.
 
 ### Live Mic Quick Usage
 ```

@@ -7,6 +7,7 @@ import StackComposerWizard from './components/wizard/StackComposerWizard';
 import GenrePortal from './components/portal/GenrePortal';
 import TestPlayground from './components/TestPlayground';
 import './live/techno140Demo'; // registers techno140 patch
+import QuickComposer from './components/QuickComposer';
 
 // Pre-parse hash for shareable genre selection (#g=genre1+genre2)
 (()=> {
@@ -47,6 +48,7 @@ function RootChooser() {
   const hash = window.location.hash;
   if (hash.includes('live-test')) return <TestPlayground />;
   if (hash.includes('stack')) return <StackComposerWizard />; // experimental step-by-step layer composer
+  if (hash.includes('quick')) return <QuickComposer />; // new intent-first quick composer
   // Treat #composer as alias of #wizard (no difference in component for now)
   const [picked, setPicked] = React.useState<string[]|undefined>((window as any).__pickedGenres);
   (window as any).resetGenre = () => setPicked(undefined);
@@ -63,6 +65,7 @@ function AppShell() {
   <button onClick={()=> (window as any).resetGenre?.()} className={mode==='dark' ? 'text-slate-400 hover:text-slate-200' : 'text-slate-600 hover:text-slate-800'}>Genres</button>
         <span className={mode==='dark' ? 'text-slate-600' : 'text-slate-400'}>|</span>
         <span className={mode==='dark' ? 'text-slate-500' : 'text-slate-500'}>Mode:</span>
+  <a href="#quick" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Quick</a>
   <a href="#composer" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Composer</a>
   <a href="#legacy" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Legacy Techno</a>
   <a href="#live-test" className={mode==='dark' ? 'text-slate-300 hover:underline' : 'text-slate-700 hover:underline'}>Live Test</a>
