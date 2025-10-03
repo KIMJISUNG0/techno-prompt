@@ -4,6 +4,7 @@ import { recommendGenres } from '../intent/recommend';
 import { buildDefaultDraft, serializeDraft, draftSummary, parseDraft } from '../prompt/sectionDsl';
 import { draftToPatterns } from '../prompt/patternMap';
 import { applySlashCommand } from '../prompt/transforms';
+import { exportPrompt } from '../prompt/promptExport';
 import { evaluateDraft } from '../prompt/quality';
 
 interface TransformLogEntry {
@@ -193,6 +194,7 @@ export default function QuickComposer() {
           <button onClick={resetAll} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Reset</button>
           {draft && <>
             <button onClick={()=> navigator.clipboard.writeText(serialized)} className="px-3 py-1 rounded border border-emerald-400 text-emerald-200 bg-emerald-600/10">Copy Draft</button>
+            <button onClick={()=> draft && navigator.clipboard.writeText(exportPrompt(draft))} className="px-3 py-1 rounded border border-cyan-400 text-cyan-200 bg-cyan-600/10">Copy Prompt</button>
             <button onClick={saveVariation} className="px-3 py-1 rounded border border-slate-600 hover:border-cyan-400 text-slate-300">Save Var</button>
             <button onClick={undo} disabled={!undoStack.length} className={`px-3 py-1 rounded border text-slate-300 ${undoStack.length? 'border-slate-600 hover:border-cyan-400':'border-slate-800 text-slate-600 cursor-not-allowed'}`}>Undo</button>
             <button onClick={redo} disabled={!redoStack.length} className={`px-3 py-1 rounded border text-slate-300 ${redoStack.length? 'border-slate-600 hover:border-cyan-400':'border-slate-800 text-slate-600 cursor-not-allowed'}`}>Redo</button>
