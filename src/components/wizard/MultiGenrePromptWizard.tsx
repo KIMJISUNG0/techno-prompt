@@ -25,7 +25,7 @@ export type ClassicWizardStep='genre'|'bpmTime'|'build';
 export type SeqStep='seq.genrePrimary'|'seq.genreStyle'|'seq.genreSubs'|'seq.tempo'|'seq.drum.kick'|'seq.drum.hat'|'seq.drum.snare'|'seq.drum.extras'|'seq.instruments'|'seq.instrumentVariants'|'seq.roles'|'seq.fx'|'seq.mix'|'seq.final';
 interface RoleConfig { tone?:string; brightness?:string; }
 interface SequentialBuildState{ rootCategory?:string; mainGenre?:GenreId; styleVariant?:string; subGenres:GenreId[]; bpm?:number; meter?:string; swing?:number; durationSec?:number; drums:{kick?:string;hat?:string;snare?:string;extras:string[]}; instruments:string[]; instrumentVariants:Record<string,string[]>; roles: { bass:RoleConfig; chords:RoleConfig; lead:RoleConfig }; fxTags:string[]; mixTags:string[]; }
-interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; }
+interface WizardState{ mode:'classic'|'sequential'; step:ClassicWizardStep|SeqStep; genre?:GenreId; genres?:GenreId[]; bpm?:number; meter?:string; swing?:number; schema?:MergedSchema; seq:SequentialBuildState; proMode:boolean; }
 
 // placeholders for alias expansion (future)
 const GENRE_ALIASES: Record<string,GenreId>={};
@@ -173,8 +173,12 @@ const INSTRUMENT_VARIANTS:Record<string,string[]>= {
   chip:['pulse lead','arp tri','noise perc']
 };
 
+// Pro vs Beginner: proMode=true exposes full granular steps, false collapses to a shorter path.
+const PRO_SEQ_STEPS:SeqStep[]=['seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
+const BEGINNER_SEQ_STEPS:SeqStep[]=['seq.genrePrimary','seq.genreSubs','seq.tempo','seq.instruments','seq.final'];
+
 export default function MultiGenrePromptWizard(){
-  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.genrePrimary', seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{ bass:{}, chords:{}, lead:{} }, fxTags:[], mixTags:[], durationSec:210 } });
+  const [state,setState]=useState<WizardState>({ mode:'sequential', step:'seq.genrePrimary', proMode:false, seq:{ subGenres:[], drums:{ extras:[] }, instruments:[], instrumentVariants:{}, roles:{ bass:{}, chords:{}, lead:{} }, fxTags:[], mixTags:[], durationSec:210 } });
   const [loading,setLoading]=useState(false);
 
   function selectGenre(g:GenreId){
@@ -188,7 +192,21 @@ export default function MultiGenrePromptWizard(){
 
   function buildSchema(list:GenreId[]):MergedSchema{ if(list.length>1){ const packs=list.map(id=> GENRE_PACKS.find(p=>p.id===id)||GENRE_PACKS.find(p=>p.id===GENRE_ALIASES[id!])).filter(Boolean) as any[]; if(!packs.length) return {groups:[...universalPack.groups],options:[...universalPack.options],subopts:{...universalPack.subopts},order:universalPack.groups.map(g=>g.id)}; if(packs.length===1) return mergePacks(universalPack,packs[0]); return mergeMultiple(universalPack,packs);} const g0=list[0]; const direct=GENRE_PACKS.find(p=>p.id===g0); const aliasKey=!direct? GENRE_ALIASES[g0!]:undefined; const aliasPack=aliasKey? GENRE_PACKS.find(p=>p.id===aliasKey):undefined; if(direct||aliasPack) return mergePacks(universalPack,(direct||aliasPack)!); return {groups:[...universalPack.groups],options:[...universalPack.options],subopts:{...universalPack.subopts},order:universalPack.groups.map(g=>g.id)}; }
 
-  function confirmBpm(v:{bpm:number;meter:string;swing?:number;durationSec?:number}){ const list= state.mode==='classic'? (state.genres||(state.genre?[state.genre]:[])) : [state.seq.mainGenre!, ...state.seq.subGenres]; if(!list.length) return; setLoading(true); setTimeout(()=>{ try{ const schema=buildSchema(list as GenreId[]); if(state.mode==='classic') setState(s=>({...s,...v,schema,step:'build'})); else setState(s=>({...s,schema,seq:{...s.seq,bpm:v.bpm,meter:v.meter,swing:v.swing,durationSec:v.durationSec},step:'seq.drum.kick'})); } catch(err){ console.error('schema build failed',err);} finally { setLoading(false);} },40); }
+  function confirmBpm(v:{bpm:number;meter:string;swing?:number;durationSec?:number}){
+    const list= state.mode==='classic'? (state.genres||(state.genre?[state.genre]:[])) : [state.seq.mainGenre!, ...state.seq.subGenres];
+    if(!list.length) return;
+    setLoading(true);
+    setTimeout(()=>{
+      try{
+        const schema=buildSchema(list as GenreId[]);
+        if(state.mode==='classic') {
+          setState(s=>({...s,...v,schema,step:'build'}));
+        } else {
+          const nextStep:SeqStep = state.proMode ? 'seq.drum.kick' : 'seq.instruments';
+          setState(s=>({...s,schema,seq:{...s.seq,bpm:v.bpm,meter:v.meter,swing:v.swing,durationSec:v.durationSec},step:nextStep}));
+        }
+      } catch(err){ console.error('schema build failed',err);} finally { setLoading(false);} },40);
+  }
   function backTo(step:ClassicWizardStep|SeqStep){ setState(s=>({...s,step})); }
 
   // theming / style tokens
@@ -196,8 +214,21 @@ export default function MultiGenrePromptWizard(){
   // Neutral palette: primary -> subtle light surface, ghost -> border only
   const accentPrimary='bg-slate-300 text-slate-900 font-semibold border-slate-300 hover:bg-slate-200 hover:brightness-110';
   const accentGhost='border-slate-600 hover:border-slate-400 hover:bg-white/5 text-slate-300';
-  const seqSteps:SeqStep[]=['seq.genrePrimary','seq.genreStyle','seq.genreSubs','seq.tempo','seq.drum.kick','seq.drum.hat','seq.drum.snare','seq.drum.extras','seq.instruments','seq.instrumentVariants','seq.roles','seq.fx','seq.mix','seq.final'];
-  const isSeq= state.mode==='sequential'; const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
+  const seqSteps:SeqStep[] = state.proMode? PRO_SEQ_STEPS: BEGINNER_SEQ_STEPS;
+  const isSeq= state.mode==='sequential';
+  // If switching mode trimmed current step, realign.
+  if(isSeq && !state.proMode && !BEGINNER_SEQ_STEPS.includes(state.step as SeqStep)){
+    // Fallback precedence by data completeness
+    let fallback:SeqStep='seq.genrePrimary';
+    if(state.seq.mainGenre) fallback='seq.genreSubs';
+    if(state.seq.bpm) fallback='seq.tempo';
+    if(state.seq.instruments.length) fallback='seq.instruments';
+    if(state.step==='seq.final') fallback='seq.final';
+    if(state.step!==fallback) {
+      useEffect(()=> { setState(s=> ({...s, step:fallback})); },[]);
+    }
+  }
+  const progressIndex= isSeq? seqSteps.indexOf(state.step as SeqStep):-1;
 
   return (
     <div className={`w-full min-h-screen app-dark-root text-slate-200 px-6 py-8 ${activeTheme.glow}`} style={secondTheme? {['--g1-from' as any]:extractFirstColor(activeTheme.gradient),['--g1-via' as any]:extractMiddleColor(activeTheme.gradient),['--g2-to' as any]:extractLastColor(secondTheme.gradient)}:undefined}>
@@ -205,12 +236,35 @@ export default function MultiGenrePromptWizard(){
   <h1 className={`text-lg font-semibold tracking-widest text-slate-300`}>{t('wizard.title')}{secondTheme? (isKorean()? ' • '+t('wizard.hybrid'):' • HYBRID'):''}</h1>
         <div className="flex gap-2 items-center">
           <button onClick={()=> setState(s=> s.mode==='classic'? {...s,mode:'sequential',step:'seq.genrePrimary'}:{...s,mode:'classic',step:'genre'})} className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-slate-400">{state.mode==='classic'? t('mode.sequential'): t('mode.classic')}</button>
+          {isSeq && (
+            <button
+              onClick={()=> setState(s=> {
+                const next=!s.proMode;
+                // On disabling proMode ensure step is valid
+                if(!next){ // turning pro -> beginner
+                  const allowed=new Set(BEGINNER_SEQ_STEPS);
+                  let step=s.step as SeqStep;
+                  if(!allowed.has(step)){
+                    if(s.seq.instruments.length) step='seq.instruments';
+                    else if(s.seq.bpm) step='seq.tempo';
+                    else if(s.seq.mainGenre) step='seq.genreSubs';
+                    else step='seq.genrePrimary';
+                  }
+                  return {...s, proMode:next, step};
+                }
+                return {...s, proMode:next};
+              })}
+              className="px-3 py-1.5 text-xs rounded border border-slate-600 hover:border-cyan-400"
+              title={state.proMode? 'Beginner view (fewer steps)':'Advanced view (all granular steps)'}
+            >{state.proMode? 'Beginner':'Advanced'}</button>
+          )}
           {state.mode==='classic' && state.step!=='genre' && <button onClick={()=> backTo('genre')} className={`${accentBtn} ${accentGhost}`}>Start Over</button>}
           {isSeq && progressIndex>0 && <button onClick={()=> backTo(seqSteps[Math.max(0,progressIndex-1)])} className="px-2 py-1 text-xs rounded border border-slate-600 hover:border-slate-400">Prev</button>}
         </div>
       </header>
       {isSeq && (
         <div className="mb-6 flex flex-wrap gap-1 items-center text-[10px]">
+          <span className="mr-2 px-2 py-[2px] rounded border border-slate-600 text-slate-400 tracking-wide">{state.proMode? 'PRO':'BEGINNER'}</span>
           {seqSteps.map(st=>{
             const on=st===state.step;
             const completedIndex=seqSteps.indexOf(st) < progressIndex; // 이미 지나간 단계
@@ -272,7 +326,7 @@ export default function MultiGenrePromptWizard(){
       {isSeq && state.step==='seq.drum.hat' && <DrumPickStep label="Hat" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,hat:val}},step:'seq.drum.snare'}))} onBack={()=> backTo('seq.drum.kick')} />}
       {isSeq && state.step==='seq.drum.snare' && <DrumPickStep label="Snare" onPick={(val)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,snare:val}},step:'seq.drum.extras'}))} onBack={()=> backTo('seq.drum.hat')} />}
     {isSeq && state.step==='seq.drum.extras' && <DrumExtrasStep extras={state.seq.drums.extras} onChange={(arr)=> setState(s=>({...s,seq:{...s.seq,drums:{...s.seq.drums,extras:arr}}}))} onNext={()=> setState(s=>({...s,step:'seq.instruments'}))} onBack={()=> backTo('seq.drum.snare')} />}
-  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step:'seq.instrumentVariants'}))} onBack={()=> backTo('seq.drum.extras')} />}
+  {isSeq && state.step==='seq.instruments' && <InstrumentCategoryStep selected={state.seq.instruments} onChange={(sel)=> setState(s=>({...s,seq:{...s.seq,instruments:sel}}))} onNext={()=> setState(s=>({...s,step: state.proMode? 'seq.instrumentVariants':'seq.final'}))} onBack={()=> backTo(state.proMode? 'seq.drum.extras':'seq.tempo')} />}
   {isSeq && state.step==='seq.instrumentVariants' && <InstrumentVariantStep selectedFamilies={state.seq.instruments} variants={state.seq.instrumentVariants} onChange={(fam,vals)=> setState(s=>({...s,seq:{...s.seq, instrumentVariants:{...s.seq.instrumentVariants,[fam]:vals}}}))} onNext={()=> setState(s=>({...s,step:'seq.roles'}))} onBack={()=> backTo('seq.instruments')} />}
   {isSeq && state.step==='seq.roles' && <RolesStep roles={state.seq.roles} onChange={(r)=> setState(s=>({...s,seq:{...s.seq,roles:r}}))} onNext={()=> setState(s=>({...s,step:'seq.fx'}))} onBack={()=> backTo('seq.instrumentVariants')} />}
   {isSeq && state.step==='seq.fx' && <TagPickStep label="FX" values={state.seq.fxTags} onChange={(vals)=> setState(s=>({...s,seq:{...s.seq,fxTags:vals}}))} onNext={()=> setState(s=>({...s,step:'seq.mix'}))} onBack={()=> backTo('seq.roles')} />}
